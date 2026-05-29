@@ -80,17 +80,21 @@
       </div>
 
       <!-- Create room modal -->
-      <div class="modal" x-show="showCreateRoom" @click.self="showCreateRoom = false">
+      <div class="modal" x-show="showCreateRoom" @click.self="showCreateRoom = false; createdRoom = null">
         <div class="modal__dialog">
           <h2>Create a room</h2>
-          <label>Room name</label>
-          <input type="text" x-model="createName" placeholder="Team Building 2026" maxlength="40">
-          <label>Admin password</label>
-          <input type="password" x-model="createPassword" placeholder="Min 4 characters" minlength="4">
-          <div class="modal__actions">
-            <button class="btn btn--primary" @click="createRoom()" :disabled="createPassword.length < 4">Create</button>
-            <button class="btn btn--ghost" @click="showCreateRoom = false">Cancel</button>
-          </div>
+          <template x-if="!createdRoom">
+            <div>
+              <label>Room name</label>
+              <input type="text" x-model="createName" placeholder="Team Building 2026" maxlength="40">
+              <label>Admin password</label>
+              <input type="password" x-model="createPassword" placeholder="Min 4 characters" minlength="4">
+              <div class="modal__actions">
+                <button class="btn btn--primary" @click="createRoom()" :disabled="createPassword.length < 4">Create</button>
+                <button class="btn btn--ghost" @click="showCreateRoom = false">Cancel</button>
+              </div>
+            </div>
+          </template>
           <div class="create-result" x-show="createdRoom">
             <p>✅ Room created!</p>
             <p>Code: <strong x-text="createdRoom?.id"></strong></p>
