@@ -22,12 +22,12 @@
           <p class="auth-gate__hint">Authenticating…</p>
         </template>
         <template x-if="!authLoading">
-          <div>
+          <form @submit.prevent="login()">
             <p class="auth-gate__hint">Enter the admin password you set when creating this room.</p>
-            <input type="password" x-model="passwordInput" placeholder="Admin password" @keydown.enter="login()">
-            <button class="btn btn--primary" @click="login()" :disabled="!passwordInput">Login</button>
+            <input type="password" x-model="passwordInput" placeholder="Admin password" autocomplete="current-password">
+            <button type="submit" class="btn btn--primary" :disabled="!passwordInput">Login</button>
             <p class="auth-gate__error" x-show="authError" x-text="authError"></p>
-          </div>
+          </form>
         </template>
       </div>
     </template>

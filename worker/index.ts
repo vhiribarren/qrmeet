@@ -47,10 +47,12 @@ const CSP = [
   "frame-ancestors 'none'",
   "form-action 'self'",
   "img-src 'self' data:",
-  "font-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-eval' https://cdn.jsdelivr.net",
-  "connect-src 'self' https://cdn.jsdelivr.net",
+  "font-src 'self' https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  // 'unsafe-eval' required by Alpine.js; 'unsafe-inline' covers the inline bootstrap
+  // script injected by Cloudflare's beacon (its hash changes with each CDN update).
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com",
+  "connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com",
   "worker-src 'self'",
   "manifest-src 'self'",
 ].join('; ')

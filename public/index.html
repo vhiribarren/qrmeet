@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <meta name="theme-color" content="#6366f1">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>QRMeet</title>
@@ -84,16 +85,16 @@
         <div class="modal__dialog">
           <h2>Create a room</h2>
           <template x-if="!createdRoom">
-            <div>
+            <form @submit.prevent="createRoom()">
               <label>Room name</label>
-              <input type="text" x-model="createName" placeholder="Team Building 2026" maxlength="40">
+              <input type="text" x-model="createName" placeholder="Team Building 2026" maxlength="40" autocomplete="off">
               <label>Admin password</label>
-              <input type="password" x-model="createPassword" placeholder="Min 4 characters" minlength="4">
+              <input type="password" x-model="createPassword" placeholder="Min 4 characters" minlength="4" autocomplete="new-password">
               <div class="modal__actions">
-                <button class="btn btn--primary" @click="createRoom()" :disabled="createPassword.length < 4">Create</button>
-                <button class="btn btn--ghost" @click="showCreateRoom = false">Cancel</button>
+                <button type="submit" class="btn btn--primary" :disabled="createPassword.length < 4">Create</button>
+                <button type="button" class="btn btn--ghost" @click="showCreateRoom = false">Cancel</button>
               </div>
-            </div>
+            </form>
           </template>
           <div class="create-result" x-show="createdRoom">
             <p>✅ Room created!</p>
