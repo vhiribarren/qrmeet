@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>QRMeet</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js" integrity="sha384-e9EFD6BGC90bkW9aDV5xbbBfzwN7G8YImHao2lfLVKV/hPB0E0go+H3I64h7oHtA" crossorigin="anonymous"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.29.1/index.js" integrity="sha384-K6agUzbeMc1GXMXkIluupxooxm0lI/miwK1KgDxZqBS19dXN9xTv3eEg8qOjpQ2q" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="app" x-data="qrmeet">
+
+    <!-- ── SESSION BANNER ── -->
+    <div class="session-banner" x-show="session" x-cloak>
+      <div class="session-banner__inner">
+        <div class="session-banner__info" x-show="session && !session.confirmed">
+          <span class="session-banner__partner">
+            <span x-text="session?.partnerEmoji"></span>
+            <span x-text="session?.partnerName"></span>
+          </span>
+          <span class="session-banner__timer" :class="{ 'session-banner__timer--urgent': sessionSecondsLeft <= 30 && sessionSecondsLeft > 0, 'session-banner__timer--done': sessionSecondsLeft <= 0 }">
+            <template x-if="sessionSecondsLeft > 0">
+              <span x-text="formatTime(sessionSecondsLeft)"></span>
+            </template>
+            <template x-if="sessionSecondsLeft <= 0">
+              <span>⏰ Scan to confirm!</span>
+            </template>
+          </span>
+        </div>
+        <div class="session-banner__confirmed" x-show="session?.confirmed">
+          ✅ Meeting confirmed! +1 point
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LANDING PAGE ── -->
+    <div class="page" x-show="page === 'landing'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+      <div class="landing__hero">
+        <div class="landing__logo">🤝</div>
+        <h1>QRMeet</h1>
+        <p>Scan people, have conversations, earn points.</p>
+      </div>
+      <div class="landing__form">
+        <!-- Resume existing session -->
+        <div x-show="savedSession && !joinMode" class="resume">
+          <p class="resume__label">You're in a room:</p>
+          <div class="resume__info">
+            <span class="resume__emoji" x-text="savedSession?.me?.emoji"></span>
+            <span class="resume__name" x-text="savedSession?.me?.displayName || 'Anonymous'"></span>
+            <span class="resume__room" x-text="'Room ' + (savedSession?.roomId ?? '')"></span>
+          </div>
+          <button class="btn btn--primary btn--large" @click="resumeSession()">Continue</button>
+          <button class="btn btn--ghost" @click="switchRoom()">Reset game</button>
+        </div>
+
+        <!-- Join / Create (no saved session or switching) -->
+        <div x-show="!savedSession && !joinMode">
+          <button class="btn btn--primary btn--large" @click="joinMode = true">Join a room</button>
+          <p class="landing__sep">or</p>
+          <button class="btn btn--secondary" @click="showCreateRoom = true">Create a room</button>
+        </div>
+        <div x-show="joinMode" class="landing__join-form">
+          <label>Room code</label>
+          <input type="text" x-model="joinCode" placeholder="abc123" maxlength="6"
+            @keyup.enter="joinRoom()" autocapitalize="none" autocomplete="off">
+          <button class="btn btn--primary" @click="joinRoom()" :disabled="!joinCode">Join</button>
+          <p class="landing__sep">or</p>
+          <button class="btn btn--secondary" @click="openScanner()">📷 Scan room QR code</button>
+          <button class="btn btn--ghost" @click="joinMode = false">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Create room modal -->
+      <div class="modal" x-show="showCreateRoom" @click.self="showCreateRoom = false">
+        <div class="modal__dialog">
+          <h2>Create a room</h2>
+          <label>Room name</label>
+          <input type="text" x-model="createName" placeholder="Team Building 2026" maxlength="40">
+          <label>Admin password</label>
+          <input type="password" x-model="createPassword" placeholder="Min 4 characters" minlength="4">
+          <div class="modal__actions">
+            <button class="btn btn--primary" @click="createRoom()" :disabled="createPassword.length < 4">Create</button>
+            <button class="btn btn--ghost" @click="showCreateRoom = false">Cancel</button>
+          </div>
+          <div class="create-result" x-show="createdRoom">
+            <p>✅ Room created!</p>
+            <p>Code: <strong x-text="createdRoom?.id"></strong></p>
+            <p class="create-result__hint">Admin access saved on this device. To open the admin panel from another device, use your password.</p>
+            <button class="btn btn--primary" @click="joinRoom(createdRoom.id)">Enter room</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CARD PAGE ── -->
+    <div class="page page--with-nav" x-show="page === 'card'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+      <div class="card-page">
+        <div class="id-card" @click="editingName = false">
+          <div class="emoji-field">
+            <button class="emoji-field__display" @click.stop="toggleEmojiPicker()" x-text="me?.emoji ?? '😊'"></button>
+            <div class="emoji-field__popup" x-show="showEmojiPicker" @click.stop>
+              <emoji-picker @emoji-click="pickEmoji($event.detail.unicode); showEmojiPicker = false"></emoji-picker>
+            </div>
+          </div>
+
+          <div class="name" @click.stop>
+            <div x-show="!editingName" class="name__display" @click="editingName = true">
+              <span x-text="me?.displayName ?? 'Tap to set name'"></span>
+              <span class="name__edit-hint">✏️</span>
+            </div>
+            <div x-show="editingName" class="name__edit">
+              <input type="text" x-model="nameInput" maxlength="40" placeholder="Your name"
+                @keyup.enter="saveName()" @blur="saveName()" x-ref="nameInput"
+                x-init="$watch('editingName', v => v && $nextTick(() => $refs.nameInput?.focus()))">
+            </div>
+          </div>
+
+          <div class="qr">
+            <!-- Active session with time remaining: show chat indicator instead of QR -->
+            <template x-if="session && !session.confirmed && sessionSecondsLeft > 0">
+              <div class="session-active">
+                <div class="session-active__emoji" x-text="session.partnerEmoji"></div>
+                <p class="session-active__label">Chatting with <strong x-text="session.partnerName"></strong></p>
+                <p class="session-active__timer" :class="{ 'session-active__timer--urgent': sessionSecondsLeft <= 30 }">
+                  <span x-text="formatTime(sessionSecondsLeft)"></span>
+                </p>
+              </div>
+            </template>
+            <!-- No active session or timer expired: show QR code -->
+            <template x-if="!session || session.confirmed || sessionSecondsLeft <= 0">
+              <div>
+                <div x-show="!qrReady" class="qr__loading">Generating QR…</div>
+                <img x-show="qrReady" :src="qrDataUrl" width="220" height="220" alt="Your QR code" class="qr__img">
+              </div>
+            </template>
+          </div>
+
+          <div class="id-card__hint" x-show="qrReady && (!session || session.confirmed || sessionSecondsLeft <= 0)">
+            <span x-show="!session || session.confirmed">Show this to others to let them scan you</span>
+            <span x-show="session && !session.confirmed && sessionSecondsLeft <= 0">⏰ Time's up — ask your partner to scan you!</span>
+          </div>
+        </div>
+
+        <!-- Pending sessions reminder -->
+        <div class="pending" x-show="pendingSessions.length > 0 && !session">
+          <strong>⏰ Pending confirmations:</strong>
+          <template x-for="enc in pendingSessions" :key="enc.id">
+            <div class="pending__item">
+              <span x-text="enc.partner_emoji"></span>
+              <span x-text="enc.partner_name"></span>
+              <span class="pending__hint">— scan them again to confirm!</span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SCORE PAGE ── -->
+    <div class="page page--with-nav" x-show="page === 'score'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+      <div class="score">
+        <div class="score__hero">
+          <div class="score__number" x-text="scoreData?.score ?? 0"></div>
+          <div class="score__label">people met</div>
+        </div>
+
+        <!-- Pending encounters (not yet confirmed) -->
+        <div class="score__pending" x-show="(scoreData?.encounters ?? []).filter(e => !e.counted).length > 0">
+          <h3>⏳ Pending confirmation</h3>
+          <template x-for="enc in (scoreData?.encounters ?? []).filter(e => !e.counted)" :key="enc.id">
+            <div class="score-item score-item--pending">
+              <span class="score-item__emoji" x-text="enc.partner_emoji"></span>
+              <span class="score-item__name" x-text="enc.partner_name"></span>
+              <span class="score-item__hint" x-text="enc.notified_at ? 'Scan again to confirm!' : 'In progress…'"></span>
+            </div>
+          </template>
+        </div>
+
+        <!-- Confirmed encounters -->
+        <div class="score__list" x-show="(scoreData?.encounters ?? []).filter(e => e.counted).length > 0">
+          <h3>✅ Who you've met</h3>
+          <template x-for="enc in (scoreData?.encounters ?? []).filter(e => e.counted)" :key="enc.id">
+            <div class="score-item">
+              <span class="score-item__emoji" x-text="enc.partner_emoji"></span>
+              <span class="score-item__name" x-text="enc.partner_name"></span>
+            </div>
+          </template>
+        </div>
+
+        <div class="score__empty" x-show="(scoreData?.encounters ?? []).length === 0">
+          <p>No meetings yet.</p>
+          <p>Go scan someone! 👀</p>
+        </div>
+
+        <button class="btn btn--ghost score__refresh" @click="loadScore()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- ── ABOUT PAGE ── -->
+    <div class="page page--with-nav" x-show="page === 'about'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+      <div class="about">
+        <div class="about__header">
+          <div class="about__logo">🤝</div>
+          <h1 class="about__title">QRMeet</h1>
+          <p class="about__tagline">Scan people, have conversations, earn points.</p>
+        </div>
+
+        <section class="about__section">
+          <h2 class="about__section-title">Privacy</h2>
+          <div class="about__section-body">
+            <p><strong>What is stored on your device</strong> — A pseudonymous game identifier, an authentication token, your chosen display name and emoji, and a temporary QR token are saved in your browser's local storage (not cookies). Tap "Reset game" below to erase them.</p>
+            <p><strong>What is stored on our servers</strong> — Your pseudonymous identifier, chosen display name, emoji, room membership, and encounter history (who met whom and when) are stored in a Cloudflare database for the duration of the event.</p>
+            <p><strong>IP address</strong> — Your IP address is used transiently to prevent abuse (rate-limiting); it is not stored beyond 1 hour and is not linked to your game profile.</p>
+            <p><strong>Cloudflare</strong> — This app runs on Cloudflare Workers, CDN, and Analytics. Cloudflare processes request metadata (IP, user-agent, country) as a data processor and may collect aggregated, anonymous traffic statistics. See <a class="about__link" href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare's Privacy Policy</a>.</p>
+            <p><strong>No third-party trackers.</strong> No advertising, analytics SDK, or social-media pixel is embedded in this app.</p>
+          </div>
+        </section>
+
+        <section class="about__section">
+          <h2 class="about__section-title">License</h2>
+          <p class="about__section-body">QRMeet is open-source software released under the MIT License: <a class="about__link" href="https://github.com/vhiribarren/qrmeet" target="_blank" rel="noopener">https://github.com/vhiribarren/qrmeet</a></p>
+        </section>
+
+        <section class="about__section">
+          <h2 class="about__section-title">Disclaimer</h2>
+          <p class="about__section-body">This service is provided free of charge, as-is, and may be taken offline at any time without notice. The author makes no guarantees of availability, reliability, or data retention, and accepts no liability for any use made of this application.</p>
+        </section>
+
+        <section class="about__section">
+          <h2 class="about__section-title">Reset</h2>
+          <p class="about__section-body">Leave your current room. Your score and profile will be lost.</p>
+          <button class="btn btn--ghost about__reset-btn" @click="switchRoom()">Reset game</button>
+        </section>
+
+        <section class="about__section">
+          <h2 class="about__section-title">Open-Source Libraries</h2>
+          <div class="about__libs">
+            <div class="about__lib"><span class="about__lib-name">Alpine.js</span><span class="about__lib-badge">MIT</span></div>
+            <div class="about__lib"><span class="about__lib-name">@vue/reactivity</span><span class="about__lib-badge">MIT</span></div>
+            <div class="about__lib"><span class="about__lib-name">D3</span><span class="about__lib-badge">ISC</span></div>
+            <div class="about__lib"><span class="about__lib-name">emoji-picker-element</span><span class="about__lib-badge">Apache-2.0</span></div>
+            <div class="about__lib"><span class="about__lib-name">hono</span><span class="about__lib-badge">MIT</span></div>
+            <div class="about__lib"><span class="about__lib-name">jsQR</span><span class="about__lib-badge">Apache-2.0</span></div>
+            <div class="about__lib"><span class="about__lib-name">nanoid</span><span class="about__lib-badge">MIT</span></div>
+            <div class="about__lib"><span class="about__lib-name">qrcode-generator</span><span class="about__lib-badge">MIT</span></div>
+            <div class="about__lib"><span class="about__lib-name">unique-names-generator</span><span class="about__lib-badge">MIT</span></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ── SCAN LANDING PAGE ── -->
+    <div class="page" x-show="page === 'scan'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+      <div class="scan">
+        <div x-show="scanState === 'scanning'">
+          <div class="scan__spinner">📡</div>
+          <p>Connecting…</p>
+        </div>
+        <div x-show="scanState === 'success'" class="scan__success">
+          <div class="scan__emoji" x-text="session?.partnerEmoji ?? '🤝'"></div>
+          <h2>Session started!</h2>
+          <p>You have <strong x-text="formatTime(sessionSecondsLeft)"></strong> to chat with</p>
+          <p class="scan__partner-name" x-text="session?.partnerName"></p>
+          <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
+        </div>
+        <div x-show="scanState === 'confirmed'" class="scan__confirmed">
+          <div>✅</div>
+          <h2>Meeting confirmed!</h2>
+          <p>+1 point for both of you!</p>
+          <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
+        </div>
+        <div x-show="scanState === 'error'" class="scan__error">
+          <div>❌</div>
+          <h2>Scan failed</h2>
+          <p x-text="scanError"></p>
+          <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BOTTOM NAV ── -->
+    <nav class="nav" x-show="page === 'card' || page === 'score' || page === 'about'" x-cloak>
+      <button class="nav__btn" :class="{ 'nav__btn--active': page === 'card' }" @click="goTo('card')">
+        <span class="nav__icon">🪪</span>
+        <span>My Card</span>
+      </button>
+      <button class="nav__btn nav__btn--scan" @click="openScanner()">
+        <span class="nav__icon">📷</span>
+        <span>Scan</span>
+      </button>
+      <button class="nav__btn" :class="{ 'nav__btn--active': page === 'score' }" @click="goTo('score'); loadScore()">
+        <span class="nav__icon">🏆</span>
+        <span>Score</span>
+      </button>
+      <button class="nav__btn" :class="{ 'nav__btn--active': page === 'about' }" @click="goTo('about')">
+        <span class="nav__icon">ℹ️</span>
+        <span>About</span>
+      </button>
+    </nav>
+
+    <!-- ── CAMERA SCANNER OVERLAY ── -->
+    <div class="scanner" x-show="scannerOpen" x-cloak @click.self="closeScanner()">
+      <div class="scanner__container">
+        <div class="scanner__header">
+          <span>Scan a QR code</span>
+          <button class="btn btn--ghost" @click="closeScanner()">✕</button>
+        </div>
+        <video x-ref="scannerVideo" playsinline autoplay muted class="scanner__video"></video>
+        <div class="scanner__hint">Point your camera at someone's QR code</div>
+      </div>
+    </div>
+
+    <!-- ── ERROR TOAST ── -->
+    <div class="toast" x-show="toast" x-text="toast" x-cloak></div>
+
+  </div>
+
+  <script type="module" src="/app.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh" crossorigin="anonymous"></script>
+</body>
+</html>

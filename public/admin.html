@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin – QRmeet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+  <script type="module" src="/admin.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div x-data="adminApp" x-cloak>
+    <!-- Auth Gate -->
+    <template x-if="!authenticated">
+      <div class="auth-gate">
+        <h2>🔐 Admin Login</h2>
+        <template x-if="authLoading">
+          <p class="auth-gate__hint">Authenticating…</p>
+        </template>
+        <template x-if="!authLoading">
+          <div>
+            <p class="auth-gate__hint">Enter the admin password you set when creating this room.</p>
+            <input type="password" x-model="passwordInput" placeholder="Admin password" @keydown.enter="login()">
+            <button class="btn btn--primary" @click="login()" :disabled="!passwordInput">Login</button>
+            <p class="auth-gate__error" x-show="authError" x-text="authError"></p>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Dashboard -->
+    <template x-if="authenticated">
+      <div class="admin-wrap">
+        <div class="admin-header">
+          <h1>🛠 Admin Dashboard</h1>
+          <p class="admin-header__sub" x-text="'Room: ' + roomId"></p>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="scores.length"></div>
+            <div class="stat-card__label">Participants</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="totalMeetings"></div>
+            <div class="stat-card__label">Meetings</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="topScore"></div>
+            <div class="stat-card__label">Top Score</div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'leaderboard' }" @click="tab = 'leaderboard'">Leaderboard</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
+        </div>
+
+        <!-- Leaderboard Tab -->
+        <div x-show="tab === 'leaderboard'">
+          <table class="leaderboard">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Participant</th>
+                <th>Joined</th>
+                <th>Score</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(user, i) in scores" :key="user.public_id">
+                <tr>
+                  <td x-text="i + 1"></td>
+                  <td>
+                    <div class="participant">
+                      <span class="participant__emoji" x-text="user.emoji"></span>
+                      <span x-text="user.display_name"></span>
+                    </div>
+                  </td>
+                  <td x-text="formatDate(user.created_at)"></td>
+                  <td x-text="user.score"></td>
+                  <td>
+                    <button class="remove-btn" @click="deleteUser(user.public_id, user.display_name)">Remove</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <p class="leaderboard__empty" x-show="scores.length === 0">No participants yet.</p>
+        </div>
+
+        <!-- Graph Tab -->
+        <div x-show="tab === 'graph'">
+          <div class="graph" id="admin-graph"></div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Toast -->
+    <div class="toast toast--bottom" x-show="toast" x-text="toast" x-transition></div>
+  </div>
+</body>
+</html>

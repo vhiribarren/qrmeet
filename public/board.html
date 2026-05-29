@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Board – QRmeet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js" integrity="sha384-e9EFD6BGC90bkW9aDV5xbbBfzwN7G8YImHao2lfLVKV/hPB0E0go+H3I64h7oHtA" crossorigin="anonymous"></script>
+  <script type="module" src="/board.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div x-data="boardApp" x-cloak>
+    <div class="board-wrap">
+      <div class="board-header">
+        <h1>📊 Leaderboard</h1>
+        <p class="board-header__sub" x-text="roomName || roomId"></p>
+      </div>
+
+      <!-- Stat Cards -->
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-card__value" x-text="totalParticipants"></div>
+          <div class="stat-card__label">Participants</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__value" x-text="totalMeetings"></div>
+          <div class="stat-card__label">Meetings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__value" x-text="topScore"></div>
+          <div class="stat-card__label">Top Score</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'top10' }" @click="tab = 'top10'">Top 10</button>
+        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
+        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'">Join</button>
+      </div>
+
+      <!-- Top 10 Tab -->
+      <div x-show="tab === 'top10'">
+        <table class="leaderboard">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Participant</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(user, i) in scores" :key="user.public_id">
+              <tr>
+                <td x-text="i + 1"></td>
+                <td>
+                  <div class="participant">
+                    <span class="participant__emoji" x-text="user.emoji"></span>
+                    <span x-text="user.display_name"></span>
+                  </div>
+                </td>
+                <td x-text="user.score"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <p class="leaderboard__empty" x-show="scores.length === 0">No participants yet.</p>
+        <p class="leaderboard__note" x-show="totalParticipants > 10" x-text="'Showing top 10 of ' + totalParticipants + ' participants'"></p>
+      </div>
+
+      <!-- Graph Tab -->
+      <div x-show="tab === 'graph'">
+        <div class="graph" id="board-graph"></div>
+      </div>
+
+      <!-- Join Tab -->
+      <div x-show="tab === 'join'">
+        <div class="join-tab">
+          <div class="qr-box" id="room-qr"></div>
+          <button class="copy-url-btn" @click="copyUrl()">
+            <span x-text="copied ? '✓ Copied!' : '📋 Copy Room URL'"></span>
+          </button>
+          <span class="join-tab__feedback" x-show="copied" x-transition>✓ Copied!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

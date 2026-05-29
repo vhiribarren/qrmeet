@@ -1,0 +1,148 @@
+/**
+ * MIT License
+ *
+ * Copyright (c) 2026 Vincent Hiribarren
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+import { Hono } from 'hono'
+import { Env, User, Encounter } from '../lib/types'
+import { newEncounterId } from '../lib/ids'
+import { extractPrivateToken } from '../lib/auth'
+
+const scan = new Hono<{ Bindings: Env }>()
+
+// POST /api/rooms/:roomId/scan
+// Body: { scanneePublicId, qrToken }
+// Header: x-private-token (scanner's token)
+function roomIdFromUrl(url: string): string {
+  const m = url.match(/\/api\/rooms\/([^/]+)\//)
+  return m?.[1] ?? ''
+}
+
+scan.post('/', async (c) => {
+  const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
+  const scannerToken = await extractPrivateToken(c.req.raw)
+  if (!scannerToken) return c.json({ error: 'Unauthorized' }, 401)
+
+  const body = await c.req.json<{ scanneePublicId: string; qrToken: string }>()
+  if (!body.scanneePublicId || !body.qrToken) {
+    return c.json({ error: 'scanneePublicId and qrToken required' }, 400)
+  }
+
+  // Verify scanner
+  const scanner = await c.env.DB.prepare(
+    'SELECT * FROM users WHERE private_token = ? AND room_id = ?'
+  ).bind(scannerToken, roomId).first<User>()
+  if (!scanner) return c.json({ error: 'Unauthorized' }, 401)
+
+  // Cannot scan yourself
+  if (scanner.public_id === body.scanneePublicId) {
+    return c.json({ error: 'Cannot scan yourself' }, 400)
+  }
+
+  // Verify scannee exists
+  const scannee = await c.env.DB.prepare(
+    'SELECT * FROM users WHERE public_id = ? AND room_id = ?'
+  ).bind(body.scanneePublicId, roomId).first<User>()
+  if (!scannee) return c.json({ error: 'User not found' }, 404)
+
+  // Verify QR token (not burned yet — only burn if we're going to proceed)
+  const kvKey = `qrtoken:${roomId}:${body.scanneePublicId}`
+  const storedToken = await c.env.QR_TOKENS.get(kvKey)
+  if (!storedToken || storedToken !== body.qrToken) {
+    return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
+  }
+
+  // Normalize pair order for UNIQUE constraint (always smaller id first)
+  const [userA, userB] = [scanner.public_id, scannee.public_id].sort()
+  const userARecord = userA === scanner.public_id ? scanner : scannee
+  const userBRecord = userB === scanner.public_id ? scanner : scannee
+
+  // Check for existing encounter between them
+  const existing = await c.env.DB.prepare(
+    'SELECT * FROM encounters WHERE room_id = ? AND user_a_id = ? AND user_b_id = ?'
+  ).bind(roomId, userA, userB).first<Encounter>()
+
+  if (existing) {
+    if (existing.counted === 1) {
+      return c.json({ error: 'You already completed a session with this person.' }, 409)
+    }
+    if (!existing.notified_at) {
+      return c.json({ error: 'Session still in progress — come back after the 5 minutes are up.' }, 409)
+    }
+
+    // Timer elapsed and notified — burn token and confirm
+    await c.env.QR_TOKENS.delete(kvKey)
+    const now = Math.floor(Date.now() / 1000)
+    await c.env.DB.prepare(
+      'UPDATE encounters SET counted = 1, closed_at = ? WHERE id = ?'
+    ).bind(now, existing.id).run()
+    await notifyDurableRoom(c.env, roomId, '/confirm-encounter', { encounterId: existing.id })
+    return c.json({ action: 'confirmed', encounterId: existing.id })
+  }
+
+  // New encounter — burn token
+  await c.env.QR_TOKENS.delete(kvKey)
+  const encId = newEncounterId()
+  const now = Math.floor(Date.now() / 1000)
+  const duration = parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
+
+  await c.env.DB.prepare(
+    'INSERT INTO encounters (id, room_id, user_a_id, user_b_id, started_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind(encId, roomId, userA, userB, now).run()
+
+  // Notify DurableRoom to start the encounter (notifies both users via WS)
+  await notifyDurableRoom(c.env, roomId, '/start-encounter', {
+    encounterId: encId,
+    userAId: userA,
+    userBId: userB,
+    userAName: userARecord.display_name,
+    userAEmoji: userARecord.emoji,
+    userBName: userBRecord.display_name,
+    userBEmoji: userBRecord.emoji,
+    startedAt: now,
+    endsAt: now + duration,
+  })
+
+  return c.json({
+    action: 'started',
+    encounterId: encId,
+    endsAt: now + duration,
+    serverTime: now,
+    partner: {
+      publicId: scannee.public_id,
+      displayName: scannee.display_name,
+      emoji: scannee.emoji,
+    },
+  })
+})
+
+async function notifyDurableRoom(env: Env, roomId: string, path: string, body: object) {
+  const doId = env.DURABLE_ROOM.idFromName(roomId)
+  const stub = env.DURABLE_ROOM.get(doId)
+  await stub.fetch(new Request(`https://internal${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }))
+}
+
+export default scan

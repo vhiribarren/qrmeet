@@ -1,0 +1,52 @@
+name = "qrmeet"
+main = "worker/index.ts"
+compatibility_date = "2026-05-27"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "none"
+not_found_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "qrmeet-db"
+database_id = "<your-d1-database-id>"
+
+[[kv_namespaces]]
+binding = "QR_TOKENS"
+id = "<your-kv-namespace-id>"
+
+[durable_objects]
+bindings = [
+  { name = "DURABLE_ROOM", class_name = "DurableRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SessionDO"]
+
+[[migrations]]
+tag = "v2"
+deleted_classes = ["SessionDO"]
+new_sqlite_classes = ["DurableRoom"]
+
+[vars]
+ENCOUNTER_DURATION_SECONDS = "300"
+MAX_JOINS_PER_IP = "100"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1
