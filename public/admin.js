@@ -1,3 +1,5 @@
+import { storage } from './storage.js'
+
 /**
  * MIT License
  *
@@ -40,7 +42,7 @@ function adminApp() {
     async init() {
       const match = window.location.pathname.match(/\/r\/([^/]+)\/admin/)
       if (match) this.roomId = match[1]
-      const saved = localStorage.getItem(`qrmeet:admin:${this.roomId}`)
+      const saved = storage.get('adminPassword')
       if (saved) {
         this.token = saved
         await this.authenticate()
@@ -70,7 +72,7 @@ function adminApp() {
           this.token = ''
           return
         }
-        localStorage.setItem(`qrmeet:admin:${this.roomId}`, this.token)
+        storage.set('adminPassword', this.token)
         this.authenticated = true
         await this.loadScores()
       } catch (e) {

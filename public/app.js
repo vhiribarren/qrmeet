@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 
+import { storage } from './storage.js'
+
 // Dependencies are loaded from CDN in index.html:
 //   - `qrcode` (qrcode-generator UMD) is exposed as a global
 //   - emoji-picker-element registers the <emoji-picker> custom element
@@ -187,16 +189,16 @@ function qrmeet() {
 
     // ── Storage ──
     loadSaved() {
-      const publicId = localStorage.getItem('qrmeet.publicId')
-      const privateToken = localStorage.getItem('qrmeet.privateToken')
-      const roomId = localStorage.getItem('qrmeet.roomId')
+      const publicId    = storage.get('publicId')
+      const privateToken = storage.get('privateToken')
+      const roomId      = storage.get('roomId')
       if (!publicId || !privateToken || !roomId) return null
       return {
         me: {
           publicId,
           privateToken,
-          displayName: localStorage.getItem('qrmeet.displayName') || 'Anonymous',
-          emoji: localStorage.getItem('qrmeet.emoji') || '😊',
+          displayName: storage.get('displayName') || 'Anonymous',
+          emoji:       storage.get('emoji') || '😊',
         },
         roomId,
       }
@@ -204,20 +206,15 @@ function qrmeet() {
 
     save() {
       if (!this.me || !this.roomId) return
-      localStorage.setItem('qrmeet.publicId', this.me.publicId)
-      localStorage.setItem('qrmeet.privateToken', this.me.privateToken)
-      localStorage.setItem('qrmeet.roomId', this.roomId)
-      localStorage.setItem('qrmeet.displayName', this.me.displayName || 'Anonymous')
-      localStorage.setItem('qrmeet.emoji', this.me.emoji || '😊')
+      storage.set('publicId',    this.me.publicId)
+      storage.set('privateToken', this.me.privateToken)
+      storage.set('roomId',      this.roomId)
+      storage.set('displayName', this.me.displayName || 'Anonymous')
+      storage.set('emoji',       this.me.emoji || '😊')
     },
 
     clearSaved() {
-      localStorage.removeItem('qrmeet.publicId')
-      localStorage.removeItem('qrmeet.privateToken')
-      localStorage.removeItem('qrmeet.roomId')
-      localStorage.removeItem('qrmeet.displayName')
-      localStorage.removeItem('qrmeet.emoji')
-      localStorage.removeItem('qrmeet.qrToken')
+      storage.clearSession()
     },
 
     // ── Room management ──
@@ -231,7 +228,7 @@ function qrmeet() {
           body: JSON.stringify({ name: this.createName || 'QRMeet', adminPassword: passwordHash }),
         })
         if (!ok) throw new Error(data.error)
-        localStorage.setItem(`qrmeet:admin:${data.id}`, passwordHash)
+        storage.set('adminPassword', passwordHash)
         this.createdRoom = data
       } catch (e) {
         this.showToast(e.message)
@@ -353,7 +350,7 @@ function qrmeet() {
       if (!this.me) return
 
       // Reuse existing token from localStorage if available
-      const saved = localStorage.getItem('qrmeet.qrToken')
+      const saved = storage.get('qrToken')
       if (saved && !this._forceNewToken) {
         this.qrToken = saved
         this._renderQr()
@@ -371,13 +368,13 @@ function qrmeet() {
         return
       }
       this.qrToken = data.token
-      localStorage.setItem('qrmeet.qrToken', data.token)
+      storage.set('qrToken', data.token)
       this._renderQr()
     },
 
     forceRefreshQrToken() {
       // Clear cached token so a fresh one is fetched from the server
-      localStorage.removeItem('qrmeet.qrToken')
+      storage.remove('qrToken')
       this._forceNewToken = true
       this.refreshQrToken()
     },
