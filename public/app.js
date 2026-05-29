@@ -281,7 +281,7 @@ function qrmeet() {
         const { ok, data } = await apiFetch(`/api/rooms/${roomId}/users`, { method: 'POST' })
         if (!ok) throw new Error(data.error || 'Could not join room')
         const emoji = randomEmoji()
-        this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: 'Anonymous', emoji }
+        this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: data.displayName, emoji }
         this.save()
         // Persist random emoji to server
         await this.updateProfile({ emoji })
@@ -308,7 +308,7 @@ function qrmeet() {
       const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users`, { method: 'POST' })
       if (!ok) throw new Error(data.error || 'Could not join room')
       const emoji = randomEmoji()
-      this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: 'Anonymous', emoji }
+      this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: data.displayName, emoji }
       this.save()
       await this.updateProfile({ emoji })
     },

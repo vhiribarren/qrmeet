@@ -77,18 +77,19 @@ users.post('/', async (c) => {
 
   const publicId = newPublicId()
   const privateToken = generateToken()
+  const displayName = randomName()
   const now = Math.floor(Date.now() / 1000)
 
   await c.env.DB.prepare(
     'INSERT INTO users (public_id, private_token, room_id, display_name, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(publicId, privateToken, roomId, randomName(), now).run()
+  ).bind(publicId, privateToken, roomId, displayName, now).run()
 
   const doId = c.env.DURABLE_ROOM.idFromName(roomId)
   await c.env.DURABLE_ROOM.get(doId).fetch(
     new Request('https://internal/broadcast-board-update', { method: 'POST' })
   )
 
-  return c.json({ publicId, privateToken }, 201)
+  return c.json({ publicId, privateToken, displayName }, 201)
 })
 
 // POST /api/rooms/:roomId/users/:uid/profile — update name/emoji
