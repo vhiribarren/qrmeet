@@ -143,7 +143,7 @@ The server:
 1. Verifies the scanner's identity via `privateToken`.
 2. Verifies the QR token against KV (the token is **not burned** if the scan would be rejected).
 3. Checks whether an open encounter already exists between the pair:
-   - **No encounter** → burns token, creates encounter row, notifies `DurableRoom`, returns `started`.
+   - **No encounter** → burns token, creates encounter row, notifies `DurableRoom`, returns `started`. If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
    - **Open encounter, `notified_at` not set** → session still in progress, returns `409`.
    - **Open encounter, `notified_at` set** → burns token, marks encounter as `counted = 1`, notifies `DurableRoom`, returns `confirmed`.
    - **Counted encounter** → returns `409`.

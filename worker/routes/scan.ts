@@ -105,9 +105,37 @@ scan.post('/', async (c) => {
   const now = Math.floor(Date.now() / 1000)
   const duration = parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
 
-  await c.env.DB.prepare(
-    'INSERT INTO encounters (id, room_id, user_a_id, user_b_id, started_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(encId, roomId, userA, userB, now).run()
+  try {
+    await c.env.DB.prepare(
+      'INSERT INTO encounters (id, room_id, user_a_id, user_b_id, started_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(encId, roomId, userA, userB, now).run()
+  } catch (e) {
+    // A concurrent scan of the same pair (e.g. both people scanning each other at
+    // once) may have already created the encounter, violating the
+    // UNIQUE(room_id, user_a_id, user_b_id) constraint. Treat it as success: the
+    // session is now active and both clients are notified over WebSocket by the
+    // request that won the race.
+    if (!(e instanceof Error && /UNIQUE/i.test(e.message))) throw e
+
+    const concurrent = await c.env.DB.prepare(
+      'SELECT * FROM encounters WHERE room_id = ? AND user_a_id = ? AND user_b_id = ?'
+    ).bind(roomId, userA, userB).first<Encounter>()
+
+    if (concurrent && concurrent.counted === 0) {
+      return c.json({
+        action: 'started',
+        encounterId: concurrent.id,
+        endsAt: concurrent.started_at + duration,
+        serverTime: now,
+        partner: {
+          publicId: scannee.public_id,
+          displayName: scannee.display_name,
+          emoji: scannee.emoji,
+        },
+      })
+    }
+    return c.json({ error: 'You already completed a session with this person.' }, 409)
+  }
 
   // Notify DurableRoom to start the encounter (notifies both users via WS)
   await notifyDurableRoom(c.env, roomId, '/start-encounter', {
