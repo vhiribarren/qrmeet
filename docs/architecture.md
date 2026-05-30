@@ -4,31 +4,13 @@
 
 ```
 qrmeet/
-├── worker/              ← Cloudflare Worker (backend)
-│   ├── index.ts         ← Hono app, route mounting, WS proxy
+├── worker/          ← Cloudflare Worker (TypeScript)
+│   ├── index.ts
 │   ├── routes/
-│   │   ├── rooms.ts    ← Room CRUD
-│   │   ├── users.ts    ← Join, profile, QR token, score
-│   │   ├── scan.ts     ← Core scan logic
-│   │   ├── board.ts    ← Public leaderboard & graph
-│   │   └── admin.ts    ← Admin (auth-protected)
 │   ├── durable/
-│   │   └── DurableRoom.ts
 │   └── lib/
-│       ├── auth.ts     ← Token hashing, extraction
-│       ├── ids.ts      ← nanoid generators
-│       └── types.ts    ← Env & model interfaces
-├── src/                 ← Frontend JS
-│   └── app.js          ← Alpine.js app (SPA)
-├── public/              ← Static assets
-│   ├── style.css
-│   ├── admin.html      ← Admin dashboard (standalone)
-│   ├── board.html      ← Public board (standalone)
-│   └── manifest.json
-├── index.html           ← SPA entry point
-├── migrations/
-│   └── 0001_init.sql
-├── vite.config.ts
+├── public/          ← Static assets + frontend JS (Alpine.js)
+├── migrations/      ← D1 SQL migrations
 ├── wrangler.toml
 └── tsconfig.json
 ```
@@ -49,7 +31,7 @@ Cloudflare Worker (Hono)
               └── Durable alarm on next encounter to expire
 ```
 
-## Data model
+## D1 database schema
 
 ### `rooms`
 | Column | Type | Description |
@@ -85,251 +67,39 @@ A `UNIQUE(room_id, user_a_id, user_b_id)` constraint prevents the same pair from
 
 ---
 
+## KV namespace — `QR_TOKENS`
+
+Two key patterns, both with a 1-hour TTL:
+
+| Key pattern | Value | Purpose |
+|---|---|---|
+| `qrtoken:{roomId}:{publicId}` | opaque token string | Single-use QR token per user |
+| `ratelimit:join:{roomId}:{ip}` | join count (integer as string) | Rate limiting joins per IP per room |
+
+---
+
+## DurableRoom SQLite schema
+
+One SQLite database per room instance. Stores only currently active encounters — rows are removed once confirmed or expired.
+
+| Column | Type | Description |
+|---|---|---|
+| `encounter_id` | TEXT PK | Matches `encounters.id` in D1 |
+| `user_a_id` / `user_b_id` | TEXT | Participant IDs |
+| `user_a_name` / `user_b_name` | TEXT | Cached display names for WebSocket pushes |
+| `user_a_emoji` / `user_b_emoji` | TEXT | Cached emojis |
+| `started_at` | INTEGER | Unix timestamp |
+| `ends_at` | INTEGER | Unix timestamp — when the alarm fires |
+
+---
+
 ## API reference
 
-All API routes are mounted under `/api/`. Errors always return JSON `{ "error": "..." }`.
-
-### Rooms
-
-#### `POST /api/rooms`
-Create a new room. The client sends a SHA-256 hash of the password (never the plaintext); the server stores a second hash of that value.
-
-**Body**
-```json
-{ "name": "Team Building 2026", "adminPassword": "<sha256-hash-of-password>" }
-```
-**Response `201`**
-```json
-{ "id": "abc123", "name": "Team Building 2026", "expiresAt": 1234567890 }
-```
+See [`docs/api.md`](api.md) for the full endpoint reference.
 
 ---
 
-#### `GET /api/rooms/:roomId`
-Fetch room metadata.
-
-**Response `200`**
-```json
-{ "id": "abc123", "name": "Team Building 2026", "created_at": 0, "expires_at": 0 }
-```
-
----
-
-### Users
-
-#### `POST /api/rooms/:roomId/users`
-Join a room. Creates a new anonymous user and returns their credentials.
-
-**Response `201`**
-```json
-{ "publicId": "abc123def456", "privateToken": "<32-char token>" }
-```
-Rate-limited to 10 joins per IP per room per hour (via KV counter).
-
----
-
-#### `POST /api/rooms/:roomId/users/:uid/profile`
-Update display name and/or emoji.
-
-**Header** `x-private-token: <privateToken>`
-
-**Body** (all fields optional)
-```json
-{ "displayName": "Alice", "emoji": "🦁" }
-```
-**Response `200`**
-```json
-{ "ok": true }
-```
-
----
-
-#### `POST /api/rooms/:roomId/users/:uid/qr-token`
-Issue (or rotate) a single-use QR token for this user. Overwrites any existing token. The token is stored in KV with a 1-hour TTL and is burned on first successful scan.
-
-**Header** `x-private-token: <privateToken>`
-
-**Response `200`**
-```json
-{ "token": "<opaque token>" }
-```
-
----
-
-#### `GET /api/rooms/:roomId/users/:uid/score`
-Fetch the user's score and encounter history.
-
-**Header** `x-private-token: <privateToken>`
-
-**Response `200`**
-```json
-{
-  "publicId": "...",
-  "displayName": "Alice",
-  "emoji": "🦁",
-  "score": 3,
-  "pendingCount": 1,
-  "encounters": [
-    {
-      "id": "...",
-      "started_at": 0,
-      "closed_at": 0,
-      "counted": 1,
-      "notified_at": 0,
-      "partner_id": "...",
-      "partner_name": "Bob",
-      "partner_emoji": "😎"
-    }
-  ]
-}
-```
-
----
-
-### Scan
-
-#### `POST /api/rooms/:roomId/scan`
-The core game action. Called when a participant scans someone else's QR code.
-
-**Header** `x-private-token: <scanner's privateToken>`
-
-**Body**
-```json
-{ "scanneePublicId": "abc123def456", "qrToken": "<token from QR URL>" }
-```
-
-The client first checks that the scanned QR belongs to the same room. If not, it shows "This person is in a different room" without making any API call.
-
-The server:
-1. Verifies the scanner's identity via `privateToken`.
-2. Verifies the QR token against KV (the token is **not burned** if the scan would be rejected).
-3. Checks whether an open encounter already exists between the pair:
-   - **No encounter** → burns token, creates encounter row, notifies `DurableRoom`, returns `started`.
-   - **Open encounter, `notified_at` not set** → session still in progress, returns `409`.
-   - **Open encounter, `notified_at` set** → burns token, marks encounter as `counted = 1`, notifies `DurableRoom`, returns `confirmed`.
-   - **Counted encounter** → returns `409`.
-
-**Response `200` — session started**
-```json
-{
-  "action": "started",
-  "encounterId": "...",
-  "endsAt": 1234567890,
-  "partner": { "publicId": "...", "displayName": "Bob", "emoji": "😎" }
-}
-```
-
-**Response `200` — meeting confirmed**
-```json
-{ "action": "confirmed", "encounterId": "..." }
-```
-
----
-
-### Board (public)
-
-No authentication required.
-
-#### `GET /api/rooms/:roomId/board/scores`
-Top 10 leaderboard.
-
-**Response `200`**
-```json
-{
-  "scores": [{ "public_id": "...", "display_name": "Alice", "emoji": "🦁", "score": 5 }],
-  "totalParticipants": 42,
-  "roomName": "Team Building 2026"
-}
-```
-
----
-
-#### `GET /api/rooms/:roomId/board/graph`
-Full encounter graph (all participants and confirmed edges).
-
-**Response `200`**
-```json
-{
-  "nodes": [{ "public_id": "...", "display_name": "Alice", "emoji": "🦁" }],
-  "edges": [{ "user_a_id": "...", "user_b_id": "...", "started_at": 0, "counted": 1 }]
-}
-```
-
----
-
-### Admin
-
-All admin routes require `x-admin-token: <adminToken>` header.
-
-#### `GET /api/admin/rooms/:roomId/scores`
-Full ranked leaderboard with creation dates.
-
-**Response `200`**
-```json
-{
-  "scores": [
-    { "public_id": "...", "display_name": "Alice", "emoji": "🦁", "created_at": 1716800000, "score": 5 }
-  ]
-}
-```
-
----
-
-#### `GET /api/admin/rooms/:roomId/graph`
-Encounter graph for D3 visualisation.
-
-**Response `200`**
-```json
-{
-  "nodes": [{ "public_id": "...", "display_name": "Alice", "emoji": "🦁" }],
-  "edges": [{ "user_a_id": "...", "user_b_id": "...", "started_at": 0, "counted": 1 }]
-}
-```
-
----
-
-#### `DELETE /api/admin/rooms/:roomId/users/:uid`
-Remove a user and all their encounters (cascaded by the DB foreign key).
-
-**Response `200`**
-```json
-{ "ok": true }
-```
-
----
-
-### WebSocket
-
-#### `GET /api/rooms/:roomId/users/:uid/ws`
-Upgrade to WebSocket. Requires `x-private-token` header **or** `?t=<privateToken>` query parameter (browsers cannot set custom headers on WebSocket connections).
-
-The connection is proxied to the room's `DurableRoom` instance. The user stays connected for the entire duration of their participation — no polling.
-
-- On connect, if the user has an active encounter, the DO immediately sends `session_start`.
-- Otherwise it sends `{ "type": "connected" }` and the connection stays open, waiting for events.
-
-**Messages from server**
-
-| `type` | When | Payload |
-|---|---|---|
-| `connected` | On connect, no active session | — |
-| `session_start` | Encounter created (push) or reconnect with active session | `encounterId`, `endsAt`, `partnerName`, `partnerEmoji` |
-| `session_end` | Timer elapses (Durable Object alarm) | `encounterId`, `message` |
-| `session_confirmed` | Meeting confirmed via second scan | `encounterId` |
-
----
-
-## Frontend routes
-
-| Path | Served as | Description |
-|---|---|---|
-| `/` | `index.html` | Landing page — create or join a room |
-| `/r/:roomId` | `index.html` | Auto-joins the room, shows card view |
-| `/r/:roomId/scan/:publicId?t=<token>` | `index.html` | QR scan landing — processes scan then redirects to card |
-| `/r/:roomId/board` | `board.html` | Public leaderboard & graph (no auth) |
-| `/r/:roomId/admin` | `admin.html` | Admin dashboard (token-protected) |
-
-### Asset serving & CSP
+## Asset serving & CSP
 
 `run_worker_first` is **not set** in `wrangler.toml` (defaults to `false`). Static assets (JS, CSS, images) are served directly from the Cloudflare edge without invoking the worker, which keeps latency low.
 
@@ -353,3 +123,74 @@ All users in a room maintain a persistent WebSocket connection to the same `Dura
 | `POST /notify` | Sends a message to specific users by ID |
 
 **Timer management**: The DO maintains a SQLite table of active encounters. The alarm is always set to the earliest `endsAt`. When it fires, all expired encounters are processed (notified), then the alarm is rescheduled to the next one.
+
+---
+
+## Frontend conventions
+
+### Stack
+
+- **Alpine.js** — the only frontend framework. Do not introduce React, Vue, or any other component library.
+- **Native ESM** — scripts are loaded as `type="module"` with relative imports. There is no bundler; files are served as-is from `public/`.
+- **No TypeScript on the frontend** — frontend code is plain `.js`. Type safety is provided by the worker (TypeScript + `@cloudflare/workers-types`).
+
+### localStorage
+
+Always use the `storage` helper from `public/storage.js`. Never call `localStorage` directly.
+
+```javascript
+import { storage } from './storage.js'
+storage.get('key')           // reads  qrmeet.key
+storage.set('key', value)    // writes qrmeet.key
+storage.clearSession()       // removes all qrmeet.* session keys
+```
+
+The `SESSION_KEYS` array in `storage.js` is the single source of truth for which keys are cleared on session reset.
+
+### API error format
+
+All API routes return errors as JSON with a consistent shape:
+
+```json
+{ "error": "Human-readable message" }
+```
+
+### Admin authentication
+
+Every admin route handler must begin with:
+
+```typescript
+if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+```
+
+Never inline the auth check; always delegate to `verifyAdmin()` in `worker/routes/admin.ts`.
+
+### Testing
+
+There is no automated test suite. Correctness is verified manually using `npm run dev` and `npm run simulate`.
+
+---
+
+## Design decisions
+
+### Client-side password hashing (double-hash)
+
+The admin password is hashed client-side (SHA-256 via Web Crypto) before being sent to the server. The server then hashes the received value a second time before storing it.
+
+- The plaintext password never leaves the browser.
+- A leaked database reveals only a hash-of-hash, not the original password.
+- `localStorage` holds the first hash (enough to authenticate), never the plaintext.
+
+### Durable Objects for encounter timers
+
+Encounter timers require a server-side alarm that fires reliably after N seconds, even if no client is connected. D1 (SQLite) is stateless and cannot self-schedule work. Durable Objects provide both persistent state and the `alarm()` primitive, making them the natural fit. Each room gets one DO instance, so timers are isolated per room and scale independently.
+
+### Single-use QR tokens in KV
+
+QR tokens are stored in KV (not D1) with a 1-hour TTL for two reasons:
+- **Atomicity**: KV writes are fast and TTL-based expiry is automatic — no cron needed.
+- **Single-use enforcement**: the token is deleted on first successful scan, preventing replay attacks without a separate "used" flag.
+
+### No `ON DELETE CASCADE` on encounters
+
+The `encounters` table references `users(public_id)` without `CASCADE`. Deleting a user therefore requires explicitly deleting their encounters first (done in the admin delete route). This is intentional: it avoids silent data loss if a delete is triggered by mistake, and keeps the migration schema simple.

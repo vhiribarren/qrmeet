@@ -1,23 +1,33 @@
 # QRMeet
 
-Mobile-first PWA for corporate team building events. Participants scan each other's QR codes to trigger a 5-minute conversation timer, then scan again to confirm the meeting and earn a point.
+Mobile-first app for corporate team building events. Participants scan each other's QR codes to trigger a 5-minute conversation timer, then scan again to confirm the meeting and earn a point.
+
+## Technologies
+
+Graphical user interface:
+
+- web app using Alpine, no installation needed
+- native technologies without transpiler, JavaScript / HTML / CSS
+
+Backend server:
+- use Cloudflare Workers and Durable Objects, with HTTP API and web sockets
+- TypeScript
 
 ## How it works
 
 1. An organiser creates a room and shares the room code with attendees.
-2. Each participant opens the app on their phone and joins the room. No account or registration needed — the app assigns a private identity stored in `localStorage`.
+2. Each participant opens the app on their phone and joins the room. No installation, no account or registration needed — the app assigns a private identity stored in `localStorage`.
 3. Each participant gets a personal ID card showing their name, emoji, and a QR code.
 4. When two people meet, one scans the other's QR code. A 5-minute countdown starts on both phones.
 5. After the timer elapses, scanning again confirms the meeting. Both participants earn +1 point.
 6. A scoreboard shows each participant their own total and the list of people they've met.
-7. The organiser can view a full leaderboard and an interactive encounter graph at `/r/{roomId}/admin`.
+7. The organiser can view a full leaderboard and an interactive encounter graph at `/r/{roomId}/board`.
 
 ### Security model
 
 - Every user has a `publicId` (embedded in QR codes) and a `privateToken` (stored only in `localStorage`, never in QR codes). All mutating API calls require the `privateToken`.
 - QR codes embed a single-use opaque token fetched from the server. The token is burned on first scan, preventing QR replay and photo attacks.
 - A fresh QR token is automatically issued after each session starts, so the confirmation scan uses a different token than the initial scan.
-- Rooms expire after 24 hours. IP-based rate limiting prevents bulk fake-user creation.
 
 ## Local development
 
@@ -26,12 +36,17 @@ No Cloudflare account needed. Wrangler simulates D1, KV, and Durable Objects loc
 ```bash
 npm install
 npm run db:migrate   # apply schema to local D1
-npm run dev          # Vite dev server on http://localhost:5173
+npm run dev          # wrangler dev on http://localhost:8787
 ```
 
 > For faster session testing, set `ENCOUNTER_DURATION_SECONDS = "30"` in `wrangler.toml` and restart.
 
 ## Deploy to Cloudflare
+
+### 0. Create configuration file
+
+First, copy `wrangler.toml.sample` to a local `wrangler.toml`.
+It is declared in the `.gitignore` file, so this is local only.
 
 ### 1. Authenticate
 
@@ -80,21 +95,21 @@ npm run db:migrate -- --remote
 npm run deploy
 ```
 
-The Durable Object (`SessionDO`) is registered automatically via the `[[migrations]]` block in `wrangler.toml` — no extra step needed.
+The Durable Object (`DurableRoom`) is registered automatically via the `[[migrations]]` block in `wrangler.toml` — no extra step needed.
 
 ## Scripts
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Local dev server (Vite + Worker, port 5173) |
-| `npm run build` | Production build → `dist/` |
-| `npm run deploy` | Build + deploy to Cloudflare |
+| `npm run dev` | Local dev server (wrangler, port 8787) |
+| `npm run deploy` | Deploy to Cloudflare |
 | `npm run db:migrate` | Apply D1 migrations locally |
 | `npm run db:migrate -- --remote` | Apply D1 migrations on production |
+| `npm run simulate` | Simulate users and encounters against a running instance |
 
 ## Further reading
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full API reference, data model, and infrastructure overview.
+See [docs/architecture.md](docs/architecture.md) for the full API reference, data model, and infrastructure overview.
 
 ## License
 

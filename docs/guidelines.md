@@ -1,5 +1,23 @@
 # Development guidelines
 
+> This file serves as development guidelines for both human contributors and AI coding agents.
+> Rules here are binding — follow them exactly, even when they conflict with general best practices or defaults.
+>
+> **AI coding agent setup:** load this file and the other docs listed below into your agent's context. Most agents support a project-level instructions file for this purpose.
+> - `docs/guidelines.md` — rules and conventions (this file)
+> - `docs/architecture.md` — stack, data model, infrastructure, design decisions
+> - `docs/api.md` — full API endpoint reference
+> - `docs/flows.md` — user flows, state machines, sequence diagrams
+> - `README.md` — product overview, security model, dev scripts
+>
+> *Example — Claude Code:* create `.claude/CLAUDE.md` at the project root:
+> ```
+> @docs/guidelines.md
+> @docs/architecture.md
+> @docs/flows.md
+> @README.md
+> ```
+
 ## Dependencies
 
 - **No contaminating licenses.** All dependencies (direct and transitive) must use permissive
@@ -41,36 +59,56 @@
 
 ## Always
 
-- **Document synchronization.** When there are some changes in the business
-  logic or in the feature, check if the documents in `docs/` have to be updated.
+- **Document synchronization.** After any change to business logic, data model,
+  API, or infrastructure, check and update the relevant files in `docs/`:
+  - `docs/architecture.md` — data model, infrastructure, design decisions
+  - `docs/api.md` — API routes and endpoint reference
+  - `docs/flows.md` — user flows, state machines, sequence diagrams
+  - `public/index.html` (Privacy section) — if data collection or third-party services change
 - **English only.** By default, all strings, labels, error messages,
   placeholders, aria-labels, and comments must be in English.
-- **License header.** Every new source file (`.ts`, `.tsx`, `.css`) must start
-  with the proprietary copyright block:
+- **License header.** Every new source file must start with the MIT copyright block, adapted to the file format:
+
+  `.ts`, `.tsx`, `.js`, `.css`:
   ```
   /**
-  * MIT License
-  *
-  * Copyright (c) 2026 Vincent Hiribarren
-  *
-  * Permission is hereby granted, free of charge, to any person obtaining a copy
-  * of this software and associated documentation files (the "Software"), to deal
-  * in the Software without restriction, including without limitation the rights
-  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  * copies of the Software, and to permit persons to whom the Software is
-  * furnished to do so, subject to the following conditions:
-  *
-  * The above copyright notice and this permission notice shall be included in all
-  * copies or substantial portions of the Software.
-  *
-  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-  * SOFTWARE.
-  */
+   * MIT License
+   *
+   * Copyright (c) 2026 Vincent Hiribarren
+   * ...
+   */
   ```
-  Update the year if it changes, or the author is the file is created by someone
-  different from the main author.
+
+  `.html` — place the comment **after** the `<!DOCTYPE html>` declaration:
+  ```
+  <!DOCTYPE html>
+  <!--
+  MIT License
+
+  Copyright (c) 2026 Vincent Hiribarren
+  ...
+  -->
+  ```
+
+  Full license text:
+  ```
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+  ```
+
+  Update the year if it changes, or the author if the file is created by someone different from the main author.
