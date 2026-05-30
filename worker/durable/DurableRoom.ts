@@ -111,7 +111,16 @@ export class DurableRoom extends DurableObject<Env> {
         server.send(JSON.stringify({ type: 'connected' }))
       }
 
-      return new Response(null, { status: 101, webSocket: client })
+      // Echo back the negotiated subprotocol scheme (never the token itself) so
+      // browsers that offered a subprotocol complete the handshake cleanly.
+      const headers = new Headers()
+      const offered = request.headers.get('sec-websocket-protocol')
+      if (offered) {
+        const selected = offered.split(',')[0].trim()
+        if (selected) headers.set('Sec-WebSocket-Protocol', selected)
+      }
+
+      return new Response(null, { status: 101, webSocket: client, headers })
     }
 
     // Start a new encounter

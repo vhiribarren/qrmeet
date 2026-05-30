@@ -240,7 +240,7 @@ Remove a user. Their encounters are deleted first to avoid foreign key constrain
 ## WebSocket
 
 ### `GET /api/rooms/:roomId/users/:uid/ws`
-Upgrade to WebSocket. Requires `x-private-token` header **or** `?t=<privateToken>` query parameter (browsers cannot set custom headers on WebSocket connections).
+Upgrade to WebSocket. The private token is passed via the **`Sec-WebSocket-Protocol`** header as the two subprotocol values `qrmeet.token, <privateToken>` (browsers cannot set arbitrary headers on WebSocket connections, but they *can* set subprotocols). This keeps the token out of the URL — and therefore out of access/observability logs. The server echoes back the `qrmeet.token` subprotocol (never the token) on success. Non-browser clients may instead send the `x-private-token` header.
 
 The connection is proxied to the room's `DurableRoom` instance. The user stays connected for the entire duration of their participation — no polling.
 

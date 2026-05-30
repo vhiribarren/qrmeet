@@ -85,7 +85,13 @@ app.route('/api/admin', admin)
 // All connections go through DurableRoom
 app.get('/api/rooms/:roomId/users/:uid/ws', async (c) => {
   const { roomId, uid } = c.req.param()
-  const privateToken = c.req.header('x-private-token') ?? c.req.query('t')
+  // Browsers cannot set custom headers on WebSocket connections, so the private
+  // token is carried in the Sec-WebSocket-Protocol header as the two subprotocol
+  // values `qrmeet.token, <token>`. This keeps it out of the URL (and therefore
+  // out of access/observability logs). Non-browser clients may use x-private-token.
+  const subprotocols = (c.req.header('sec-websocket-protocol') ?? '').split(',').map((s) => s.trim())
+  const protoToken = subprotocols[0] === 'qrmeet.token' ? subprotocols[1] : undefined
+  const privateToken = c.req.header('x-private-token') ?? protoToken
 
   if (!privateToken) return c.json({ error: 'Unauthorized' }, 401)
 
@@ -99,6 +105,7 @@ app.get('/api/rooms/:roomId/users/:uid/ws', async (c) => {
   const stub = c.env.DURABLE_ROOM.get(doId)
   const wsUrl = new URL(c.req.url)
   wsUrl.pathname = '/ws'
+  wsUrl.searchParams.delete('t') // never forward a token in the URL
   wsUrl.searchParams.set('userId', uid)
 
   return stub.fetch(new Request(wsUrl.toString(), c.req.raw))

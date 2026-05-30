@@ -604,8 +604,11 @@ function qrmeet() {
       clearTimeout(this.wsReconnectTimer)
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const url = `${proto}//${location.host}/api/rooms/${this.roomId}/users/${this.me.publicId}/ws?t=${this.me.privateToken}`
-      this.ws = new WebSocket(url)
+      const url = `${proto}//${location.host}/api/rooms/${this.roomId}/users/${this.me.publicId}/ws`
+      // The private token is passed via the WebSocket subprotocol header
+      // (['qrmeet.token', <token>]) rather than the URL query string, so it
+      // never appears in server access/observability logs.
+      this.ws = new WebSocket(url, ['qrmeet.token', this.me.privateToken])
 
       this.ws.onmessage = (evt) => this.handleWsMessage(JSON.parse(evt.data))
       this.ws.onclose = () => {
