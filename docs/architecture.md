@@ -92,15 +92,15 @@ All API routes are mounted under `/api/`. Errors always return JSON `{ "error": 
 ### Rooms
 
 #### `POST /api/rooms`
-Create a new room. Returns a one-time admin token (never stored in plaintext).
+Create a new room. The client sends a SHA-256 hash of the password (never the plaintext); the server stores a second hash of that value.
 
 **Body**
 ```json
-{ "name": "Team Building 2026", "adminPassword": "s3cr3t" }
+{ "name": "Team Building 2026", "adminPassword": "<sha256-hash-of-password>" }
 ```
 **Response `201`**
 ```json
-{ "id": "abc123", "name": "Team Building 2026", "adminToken": "<token>", "expiresAt": 1234567890 }
+{ "id": "abc123", "name": "Team Building 2026", "expiresAt": 1234567890 }
 ```
 
 ---
@@ -328,6 +328,14 @@ The connection is proxied to the room's `DurableRoom` instance. The user stays c
 | `/r/:roomId/scan/:publicId?t=<token>` | `index.html` | QR scan landing — processes scan then redirects to card |
 | `/r/:roomId/board` | `board.html` | Public leaderboard & graph (no auth) |
 | `/r/:roomId/admin` | `admin.html` | Admin dashboard (token-protected) |
+
+### Asset serving & CSP
+
+`run_worker_first` is **not set** in `wrangler.toml` (defaults to `false`). Static assets (JS, CSS, images) are served directly from the Cloudflare edge without invoking the worker, which keeps latency low.
+
+HTML pages are always routed through explicit worker handlers (`/r/:id`, `/r/:id/board`, `/r/:id/admin`), which is where the CSP middleware runs. Because browsers enforce CSP from the document response, this gives full security coverage without the overhead of running the worker for every asset request.
+
+> If a future change needs the worker to intercept asset requests (e.g. to add headers to JS files), set `run_worker_first = true` in `[assets]`.
 
 ---
 

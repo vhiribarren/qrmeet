@@ -8,6 +8,10 @@ directory = "./public"
 binding = "ASSETS"
 html_handling = "none"
 not_found_handling = "none"
+# run_worker_first is intentionally omitted (defaults to false).
+# Static assets (JS, CSS) are served directly from the edge without invoking the
+# worker. HTML pages are always routed through the worker
+# (/r/:id, /r/:id/admin, /r/:id/board), which is where CSP headers are injected.
 
 [[d1_databases]]
 binding = "DB"
