@@ -35,15 +35,6 @@ function randomName(): string {
 
 const users = new Hono<{ Bindings: Env }>()
 
-// Rate limit: max 10 users per IP per room (simple KV counter)
-async function checkRateLimit(kv: KVNamespace, ip: string, roomId: string, limit: number): Promise<boolean> {
-  const key = `ratelimit:join:${roomId}:${ip}`
-  const count = parseInt((await kv.get(key)) ?? '0')
-  if (count >= limit) return false
-  await kv.put(key, String(count + 1), { expirationTtl: 3600 })
-  return true
-}
-
 function roomIdFromUrl(url: string): string {
   const m = url.match(/\/api\/rooms\/([^/]+)\/users/)
   return m?.[1] ?? ''
@@ -67,14 +58,6 @@ users.post('/', async (c) => {
     'SELECT id FROM rooms WHERE id = ? AND expires_at > ?'
   ).bind(roomId, Math.floor(Date.now() / 1000)).first()
   if (!room) return c.json({ error: 'Room not found or expired' }, 404)
-
-  const cfIp = c.req.header('cf-connecting-ip') ?? 'unknown'
-  const isLoopback = cfIp === '127.0.0.1' || cfIp === '::1'
-  const ip = isLoopback ? (c.req.header('x-forwarded-for') ?? cfIp) : cfIp
-  const joinLimit = parseInt(c.env.MAX_JOINS_PER_IP || '500')
-  if (!await checkRateLimit(c.env.QR_TOKENS, ip, roomId, joinLimit)) {
-    return c.json({ error: 'Too many joins from this IP' }, 429)
-  }
 
   const publicId = newPublicId()
   const privateToken = generateToken()

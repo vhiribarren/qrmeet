@@ -64,7 +64,6 @@ Join a room. Creates a new anonymous user and returns their credentials.
 ```json
 { "publicId": "abc123def456", "privateToken": "<32-char token>", "displayName": "Alice" }
 ```
-Rate-limited per IP per room (configurable via `MAX_JOINS_PER_IP` env var, default 500).
 
 ---
 

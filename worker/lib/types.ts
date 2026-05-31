@@ -28,7 +28,6 @@ export interface Env {
   DURABLE_ROOM: DurableObjectNamespace
   ASSETS: Fetcher
   ENCOUNTER_DURATION_SECONDS: string
-  MAX_JOINS_PER_IP: string
   ROOM_TTL_DAYS: string
 }
 
