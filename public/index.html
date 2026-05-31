@@ -41,10 +41,10 @@ SOFTWARE.
   <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.29.1/index.js" integrity="sha384-K6agUzbeMc1GXMXkIluupxooxm0lI/miwK1KgDxZqBS19dXN9xTv3eEg8qOjpQ2q" crossorigin="anonymous"></script>
 </head>
 <body>
-  <div id="app" x-data="qrmeet">
+  <div id="app" x-data="qrmeet" x-cloak>
 
     <!-- ── SESSION BANNER ── -->
-    <div class="session-banner" x-show="session" x-cloak>
+    <div class="session-banner" x-show="session">
       <div class="session-banner__inner">
         <div class="session-banner__info" x-show="session && !session.confirmed">
           <span class="session-banner__partner">
@@ -67,7 +67,7 @@ SOFTWARE.
     </div>
 
     <!-- ── LANDING PAGE ── -->
-    <div class="page" x-show="page === 'landing'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+    <div class="page" x-show="page === 'landing'" x-transition:enter="page-enter">
       <div class="landing__hero">
         <div class="landing__logo">🤝</div>
         <h1>QRMeet</h1>
@@ -130,7 +130,7 @@ SOFTWARE.
     </div>
 
     <!-- ── CARD PAGE ── -->
-    <div class="page page--with-nav" x-show="page === 'card'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+    <div class="page page--with-nav" x-show="page === 'card'" x-transition:enter="page-enter">
       <div class="card-page">
         <div class="id-card" @click="editingName = false">
           <div class="emoji-field">
@@ -193,7 +193,7 @@ SOFTWARE.
     </div>
 
     <!-- ── SCORE PAGE ── -->
-    <div class="page page--with-nav" x-show="page === 'score'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+    <div class="page page--with-nav" x-show="page === 'score'" x-transition:enter="page-enter">
       <div class="score">
         <div class="score__hero">
           <div class="score__number" x-text="scoreData?.score ?? 0"></div>
@@ -233,7 +233,7 @@ SOFTWARE.
     </div>
 
     <!-- ── ABOUT PAGE ── -->
-    <div class="page page--with-nav" x-show="page === 'about'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+    <div class="page page--with-nav" x-show="page === 'about'" x-transition:enter="page-enter">
       <div class="about">
         <div class="about__header">
           <div class="about__logo">🤝</div>
@@ -286,7 +286,7 @@ SOFTWARE.
     </div>
 
     <!-- ── SCAN LANDING PAGE ── -->
-    <div class="page" x-show="page === 'scan'" x-cloak x-transition:enter="page-enter" x-transition:leave="page-leave">
+    <div class="page" x-show="page === 'scan'" x-transition:enter="page-enter">
       <div class="scan">
         <div x-show="scanState === 'scanning'">
           <div class="scan__spinner">📡</div>
@@ -315,7 +315,7 @@ SOFTWARE.
     </div>
 
     <!-- ── BOTTOM NAV ── -->
-    <nav class="nav" x-show="page === 'card' || page === 'score' || page === 'about'" x-cloak>
+    <nav class="nav" x-show="page === 'card' || page === 'score' || page === 'about'">
       <button class="nav__btn" :class="{ 'nav__btn--active': page === 'card' }" @click="goTo('card')">
         <span class="nav__icon">🪪</span>
         <span>My Card</span>
@@ -335,7 +335,7 @@ SOFTWARE.
     </nav>
 
     <!-- ── CAMERA SCANNER OVERLAY ── -->
-    <div class="scanner" x-show="scannerOpen" x-cloak @click.self="closeScanner()">
+    <div class="scanner" x-show="scannerOpen" @click.self="closeScanner()">
       <div class="scanner__container">
         <div class="scanner__header">
           <span>Scan a QR code</span>
@@ -347,7 +347,7 @@ SOFTWARE.
     </div>
 
     <!-- ── ERROR TOAST ── -->
-    <div class="toast" x-show="toast" x-text="toast" x-cloak></div>
+    <div class="toast" x-show="toast" x-text="toast"></div>
 
   </div>
 
