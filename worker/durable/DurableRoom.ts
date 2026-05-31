@@ -25,7 +25,7 @@
 import { DurableObject } from 'cloudflare:workers'
 import { Env } from '../lib/types'
 
-interface ActiveEncounter {
+export interface ActiveEncounter {
   encounterId: string
   userAId: string
   userBId: string
@@ -123,70 +123,6 @@ export class DurableRoom extends DurableObject<Env> {
       return new Response(null, { status: 101, webSocket: client, headers })
     }
 
-    // Start a new encounter
-    if (url.pathname === '/start-encounter') {
-      const data = await request.json() as ActiveEncounter
-      this.encounters.set(data.encounterId, data)
-
-      // Persist to SQLite
-      this.ctx.storage.sql.exec(
-        `INSERT OR REPLACE INTO active_encounters
-         (encounter_id, user_a_id, user_b_id, user_a_name, user_a_emoji, user_b_name, user_b_emoji, started_at, ends_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        data.encounterId, data.userAId, data.userBId,
-        data.userAName, data.userAEmoji, data.userBName, data.userBEmoji,
-        data.startedAt, data.endsAt
-      )
-
-      // Notify both users
-      const now = Math.floor(Date.now() / 1000)
-      const msgA = JSON.stringify({
-        type: 'session_start',
-        encounterId: data.encounterId,
-        endsAt: data.endsAt,
-        serverTime: now,
-        partnerName: data.userBName,
-        partnerEmoji: data.userBEmoji,
-      })
-      const msgB = JSON.stringify({
-        type: 'session_start',
-        encounterId: data.encounterId,
-        endsAt: data.endsAt,
-        serverTime: now,
-        partnerName: data.userAName,
-        partnerEmoji: data.userAEmoji,
-      })
-      this.sendToUser(data.userAId, msgA)
-      this.sendToUser(data.userBId, msgB)
-
-      // Schedule alarm for this encounter (or reschedule if earlier)
-      await this.scheduleNextAlarm()
-
-      return new Response('ok')
-    }
-
-    // Confirm an encounter (second scan)
-    if (url.pathname === '/confirm-encounter') {
-      const { encounterId } = await request.json() as { encounterId: string }
-      const encounter = this.encounters.get(encounterId)
-      if (encounter) {
-        // Notify both users
-        const msg = JSON.stringify({ type: 'session_confirmed', encounterId })
-        this.sendToUser(encounter.userAId, msg)
-        this.sendToUser(encounter.userBId, msg)
-
-        // Remove from active encounters
-        this.encounters.delete(encounterId)
-        this.ctx.storage.sql.exec(
-          'DELETE FROM active_encounters WHERE encounter_id = ?',
-          encounterId
-        )
-        await this.scheduleNextAlarm()
-        this.broadcastToBoards({ type: 'board_update' })
-      }
-      return new Response('ok')
-    }
-
     // WebSocket connection for a board viewer
     if (url.pathname === '/board-ws') {
       if (request.headers.get('Upgrade') !== 'websocket') {
@@ -198,31 +134,72 @@ export class DurableRoom extends DurableObject<Env> {
       return new Response(null, { status: 101, webSocket: client })
     }
 
-    // Broadcast a board_update to all board viewers (e.g. after a user joins)
-    if (url.pathname === '/broadcast-board-update') {
-      this.broadcastToBoards({ type: 'board_update' })
-      return new Response('ok')
-    }
-
-    // Notify specific users (generic)
-    if (url.pathname === '/notify') {
-      const { userIds, message } = await request.json() as { userIds: string[]; message: object }
-      const payload = JSON.stringify(message)
-      for (const uid of userIds) {
-        this.sendToUser(uid, payload)
-      }
-      return new Response('ok')
-    }
-
-    // Wipe all room state (called by the cron when the room expires)
-    if (url.pathname === '/cleanup') {
-      this.encounters.clear()
-      this.ctx.storage.sql.exec('DELETE FROM active_encounters')
-      await this.ctx.storage.deleteAlarm()
-      return new Response('ok')
-    }
-
     return new Response('Not found', { status: 404 })
+  }
+
+  async startEncounter(data: ActiveEncounter): Promise<void> {
+    await this.ensureInitialized()
+    this.encounters.set(data.encounterId, data)
+
+    this.ctx.storage.sql.exec(
+      `INSERT OR REPLACE INTO active_encounters
+       (encounter_id, user_a_id, user_b_id, user_a_name, user_a_emoji, user_b_name, user_b_emoji, started_at, ends_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      data.encounterId, data.userAId, data.userBId,
+      data.userAName, data.userAEmoji, data.userBName, data.userBEmoji,
+      data.startedAt, data.endsAt
+    )
+
+    const now = Math.floor(Date.now() / 1000)
+    const msgA = JSON.stringify({
+      type: 'session_start',
+      encounterId: data.encounterId,
+      endsAt: data.endsAt,
+      serverTime: now,
+      partnerName: data.userBName,
+      partnerEmoji: data.userBEmoji,
+    })
+    const msgB = JSON.stringify({
+      type: 'session_start',
+      encounterId: data.encounterId,
+      endsAt: data.endsAt,
+      serverTime: now,
+      partnerName: data.userAName,
+      partnerEmoji: data.userAEmoji,
+    })
+    this.sendToUser(data.userAId, msgA)
+    this.sendToUser(data.userBId, msgB)
+
+    await this.scheduleNextAlarm()
+  }
+
+  async confirmEncounter(encounterId: string): Promise<void> {
+    await this.ensureInitialized()
+    const encounter = this.encounters.get(encounterId)
+    if (!encounter) return
+
+    const msg = JSON.stringify({ type: 'session_confirmed', encounterId })
+    this.sendToUser(encounter.userAId, msg)
+    this.sendToUser(encounter.userBId, msg)
+
+    this.encounters.delete(encounterId)
+    this.ctx.storage.sql.exec(
+      'DELETE FROM active_encounters WHERE encounter_id = ?',
+      encounterId
+    )
+    await this.scheduleNextAlarm()
+    this.broadcastToBoards({ type: 'board_update' })
+  }
+
+  async broadcastBoardUpdate(): Promise<void> {
+    this.broadcastToBoards({ type: 'board_update' })
+  }
+
+  async cleanup(): Promise<void> {
+    await this.ensureInitialized()
+    this.encounters.clear()
+    this.ctx.storage.sql.exec('DELETE FROM active_encounters')
+    await this.ctx.storage.deleteAlarm()
   }
 
   async alarm(): Promise<void> {

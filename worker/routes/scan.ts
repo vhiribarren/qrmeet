@@ -24,6 +24,7 @@
 
 import { Hono } from 'hono'
 import { Env, User, Encounter } from '../lib/types'
+import type { DurableRoom } from '../durable/DurableRoom'
 import { newEncounterId } from '../lib/ids'
 import { extractPrivateToken } from '../lib/auth'
 
@@ -95,7 +96,8 @@ scan.post('/', async (c) => {
     await c.env.DB.prepare(
       'UPDATE encounters SET counted = 1, closed_at = ? WHERE id = ?'
     ).bind(now, existing.id).run()
-    await notifyDurableRoom(c.env, roomId, '/confirm-encounter', { encounterId: existing.id })
+    const confirmStub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
+    await confirmStub.confirmEncounter(existing.id)
     return c.json({ action: 'confirmed', encounterId: existing.id })
   }
 
@@ -137,8 +139,8 @@ scan.post('/', async (c) => {
     return c.json({ error: 'You already completed a session with this person.' }, 409)
   }
 
-  // Notify DurableRoom to start the encounter (notifies both users via WS)
-  await notifyDurableRoom(c.env, roomId, '/start-encounter', {
+  const startStub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
+  await startStub.startEncounter({
     encounterId: encId,
     userAId: userA,
     userBId: userB,
@@ -162,15 +164,5 @@ scan.post('/', async (c) => {
     },
   })
 })
-
-async function notifyDurableRoom(env: Env, roomId: string, path: string, body: object) {
-  const doId = env.DURABLE_ROOM.idFromName(roomId)
-  const stub = env.DURABLE_ROOM.get(doId)
-  await stub.fetch(new Request(`https://internal${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }))
-}
 
 export default scan

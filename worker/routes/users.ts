@@ -24,6 +24,7 @@
 
 import { Hono } from 'hono'
 import { Env, User } from '../lib/types'
+import type { DurableRoom } from '../durable/DurableRoom'
 import { newPublicId, generateToken, newToken } from '../lib/ids'
 import { extractPrivateToken } from '../lib/auth'
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
@@ -85,9 +86,8 @@ users.post('/', async (c) => {
   ).bind(publicId, privateToken, roomId, displayName, now).run()
 
   const doId = c.env.DURABLE_ROOM.idFromName(roomId)
-  await c.env.DURABLE_ROOM.get(doId).fetch(
-    new Request('https://internal/broadcast-board-update', { method: 'POST' })
-  )
+  const stub = c.env.DURABLE_ROOM.get(doId) as unknown as DurableObjectStub<DurableRoom>
+  await stub.broadcastBoardUpdate()
 
   return c.json({ publicId, privateToken, displayName }, 201)
 })

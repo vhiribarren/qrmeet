@@ -30,6 +30,7 @@ import scan from './routes/scan'
 import admin from './routes/admin'
 import board from './routes/board'
 
+import type { DurableRoom } from './durable/DurableRoom'
 export { DurableRoom } from './durable/DurableRoom'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -160,8 +161,8 @@ const scheduled: ExportedHandlerScheduledHandler<Env> = async (_event, env, _ctx
       env.DB.prepare('DELETE FROM users WHERE room_id = ?').bind(id),
       env.DB.prepare('DELETE FROM rooms WHERE id = ?').bind(id),
     ])
-    const stub = env.DURABLE_ROOM.get(env.DURABLE_ROOM.idFromName(id))
-    await stub.fetch(new Request('https://internal/cleanup', { method: 'POST' }))
+    const stub = env.DURABLE_ROOM.get(env.DURABLE_ROOM.idFromName(id)) as unknown as DurableObjectStub<DurableRoom>
+    await stub.cleanup()
   }
 }
 
