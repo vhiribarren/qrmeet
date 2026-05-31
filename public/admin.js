@@ -304,6 +304,15 @@ function adminApp() {
       setTimeout(() => { this.toast = '' }, 3000)
     },
 
+    networkTagStyle(tag) {
+      if (!tag) return {}
+      const hue = parseInt(tag.slice(0, 2), 16) * 360 / 256
+      return {
+        background: `hsl(${hue}, 55%, 82%)`,
+        color: `hsl(${hue}, 40%, 28%)`,
+      }
+    },
+
     formatDate(iso) {
       if (!iso) return '—'
       const d = new Date(iso * 1000)

@@ -38,6 +38,7 @@ export interface Room {
   admin_token_hash: string
   created_at: number
   expires_at: number
+  ip_salt: string
   encounter_duration_seconds: number | null
   max_participants: number | null
   is_open: number
@@ -49,6 +50,7 @@ export interface User {
   room_id: string
   display_name: string
   emoji: string
+  ip_hash: string | null
   created_at: number
 }
 

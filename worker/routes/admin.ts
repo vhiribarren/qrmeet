@@ -57,6 +57,7 @@ admin.get('/rooms/:roomId/scores', async (c) => {
       u.display_name,
       u.emoji,
       u.created_at,
+      SUBSTR(u.ip_hash, 1, 8) as network_tag,
       COUNT(CASE WHEN e.counted = 1 THEN 1 END) as score
     FROM users u
     LEFT JOIN encounters e

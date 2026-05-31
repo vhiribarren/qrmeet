@@ -96,6 +96,7 @@ SOFTWARE.
                 <th>Participant</th>
                 <th>Joined</th>
                 <th>Score</th>
+                <th>Network</th>
                 <th></th>
               </tr>
             </thead>
@@ -111,6 +112,14 @@ SOFTWARE.
                   </td>
                   <td x-text="formatDate(user.created_at)"></td>
                   <td x-text="user.score"></td>
+                  <td>
+                    <span x-show="user.network_tag"
+                      class="network-tag"
+                      :style="networkTagStyle(user.network_tag)"
+                      :title="user.network_tag"
+                      x-text="user.network_tag"></span>
+                    <span x-show="!user.network_tag" class="network-tag network-tag--unknown">—</span>
+                  </td>
                   <td>
                     <button class="remove-btn" @click="deleteUser(user.public_id, user.display_name)">Remove</button>
                   </td>

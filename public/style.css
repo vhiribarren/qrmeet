@@ -395,6 +395,12 @@ emoji-picker {
 .participant { display: flex; align-items: center; gap: 8px; }
 .participant__emoji { font-size: 22px; }
 
+.network-tag {
+  display: inline-block; font-size: 11px; font-weight: 600; font-family: monospace;
+  padding: 2px 6px; border-radius: 4px; letter-spacing: 0.03em;
+}
+.network-tag--unknown { color: var(--text-muted); }
+
 .remove-btn {
   background: none; border: none; cursor: pointer; color: var(--danger);
   font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 6px;

@@ -24,7 +24,7 @@
 
 import { Hono } from 'hono'
 import { Env } from '../lib/types'
-import { newRoomId } from '../lib/ids'
+import { newRoomId, generateToken } from '../lib/ids'
 import { hashToken } from '../lib/auth'
 
 const rooms = new Hono<{ Bindings: Env }>()
@@ -44,9 +44,10 @@ rooms.post('/', async (c) => {
   const expiresAt = now + ttlDays * 86400
 
   const name = body.name ?? 'QRMeet'
+  const ipSalt = generateToken()
   await c.env.DB.prepare(
-    'INSERT INTO rooms (id, name, admin_token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(id, name, adminTokenHash, now, expiresAt).run()
+    'INSERT INTO rooms (id, name, admin_token_hash, created_at, expires_at, ip_salt) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(id, name, adminTokenHash, now, expiresAt, ipSalt).run()
 
   console.info('room.created', { room: id, name, expiresAt })
   return c.json({ id, name, expiresAt })

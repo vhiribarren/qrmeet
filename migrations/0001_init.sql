@@ -4,6 +4,7 @@ CREATE TABLE rooms (
   admin_token_hash TEXT NOT NULL,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   expires_at INTEGER NOT NULL,
+  ip_salt TEXT NOT NULL DEFAULT '',
   encounter_duration_seconds INTEGER,
   max_participants INTEGER,
   is_open INTEGER NOT NULL DEFAULT 1
@@ -15,6 +16,7 @@ CREATE TABLE users (
   room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
   display_name TEXT NOT NULL DEFAULT 'Anonymous',
   emoji TEXT NOT NULL DEFAULT '😊',
+  ip_hash TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
 

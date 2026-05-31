@@ -22,6 +22,18 @@
  * SOFTWARE.
  */
 
+export async function hmacIp(ip: string, salt: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(salt),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(ip))
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 export async function hashToken(token: string): Promise<string> {
   const data = new TextEncoder().encode(token)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
