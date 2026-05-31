@@ -341,8 +341,12 @@ SOFTWARE.
           <span>Scan a QR code</span>
           <button class="btn btn--ghost" @click="closeScanner()">✕</button>
         </div>
-        <video x-ref="scannerVideo" playsinline autoplay muted class="scanner__video"></video>
-        <div class="scanner__hint">Point your camera at someone's QR code</div>
+        <video x-ref="scannerVideo" playsinline autoplay muted class="scanner__video" x-show="!cameraBlocked"></video>
+        <div class="scanner__blocked" x-show="cameraBlocked">
+          <p>🔒 Camera access was blocked.</p>
+          <p>Click the <strong>lock icon</strong> in your browser's address bar, allow camera access, then try again.</p>
+        </div>
+        <div class="scanner__hint" x-show="!cameraBlocked">Point your camera at someone's QR code</div>
       </div>
     </div>
 

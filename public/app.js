@@ -118,6 +118,7 @@ function qrmeet() {
     scanError: '',
     scannerOpen: false,
     scannerStream: null,
+    cameraBlocked: false,
 
     // Toast
     toast: null,
@@ -391,6 +392,7 @@ function qrmeet() {
 
     // ── Scanner (camera) ──
     async openScanner() {
+      this.cameraBlocked = false
       this.scannerOpen = true
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -402,13 +404,18 @@ function qrmeet() {
         await video.play()
         this._startDetection(video)
       } catch (e) {
-        this.showToast('Camera access denied')
-        this.scannerOpen = false
+        if (e.name === 'NotAllowedError') {
+          this.cameraBlocked = true
+        } else {
+          this.showToast('Camera not available')
+          this.scannerOpen = false
+        }
       }
     },
 
     closeScanner() {
       this.scannerOpen = false
+      this.cameraBlocked = false
       if (this.scannerStream) {
         this.scannerStream.getTracks().forEach(t => t.stop())
         this.scannerStream = null
