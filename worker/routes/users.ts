@@ -72,6 +72,7 @@ users.post('/', async (c) => {
   const stub = c.env.DURABLE_ROOM.get(doId) as unknown as DurableObjectStub<DurableRoom>
   await stub.broadcastBoardUpdate()
 
+  console.info('user.joined', { room: roomId, user: publicId, displayName })
   return c.json({ publicId, privateToken, displayName }, 201)
 })
 

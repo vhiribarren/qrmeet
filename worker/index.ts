@@ -72,7 +72,7 @@ app.use('*', async (c, next) => {
 
 // Always return JSON errors from API routes
 app.onError((err, c) => {
-  console.error(err)
+  console.error('unhandled error', { url: c.req.url, error: err.message, stack: err.stack })
   return c.json({ error: err.message || 'Internal server error' }, 500)
 })
 
@@ -155,6 +155,12 @@ const scheduled: ExportedHandlerScheduledHandler<Env> = async (_event, env, _ctx
     'SELECT id FROM rooms WHERE expires_at <= ?'
   ).bind(now).all<{ id: string }>()
 
+  const count = expired.results.length
+  if (count === 0) {
+    console.info('cron.cleanup', { expired: 0 })
+    return
+  }
+
   for (const { id } of expired.results) {
     await env.DB.batch([
       env.DB.prepare('DELETE FROM encounters WHERE room_id = ?').bind(id),
@@ -164,6 +170,7 @@ const scheduled: ExportedHandlerScheduledHandler<Env> = async (_event, env, _ctx
     const stub = env.DURABLE_ROOM.get(env.DURABLE_ROOM.idFromName(id)) as unknown as DurableObjectStub<DurableRoom>
     await stub.cleanup()
   }
+  console.info('cron.cleanup', { expired: count, rooms: expired.results.map(r => r.id) })
 }
 
 export default { fetch: app.fetch, scheduled }

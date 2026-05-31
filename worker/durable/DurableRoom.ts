@@ -200,6 +200,7 @@ export class DurableRoom extends DurableObject<Env> {
     this.encounters.clear()
     this.ctx.storage.sql.exec('DELETE FROM active_encounters')
     await this.ctx.storage.deleteAlarm()
+    console.info('room.cleanup', { room: this.ctx.id.name })
   }
 
   async alarm(): Promise<void> {
@@ -215,12 +216,10 @@ export class DurableRoom extends DurableObject<Env> {
     }
 
     for (const enc of expired) {
-      // Update DB: set notified_at
       await this.env.DB.prepare(
         'UPDATE encounters SET notified_at = ? WHERE id = ? AND notified_at IS NULL'
       ).bind(now, enc.encounterId).run()
 
-      // Notify both users
       const msg = JSON.stringify({
         type: 'session_end',
         encounterId: enc.encounterId,
@@ -228,12 +227,15 @@ export class DurableRoom extends DurableObject<Env> {
       })
       this.sendToUser(enc.userAId, msg)
       this.sendToUser(enc.userBId, msg)
-
-      // Keep encounter in memory (needed for confirm-encounter notification later)
-      // but no need to reschedule alarm for it
     }
 
-    // Schedule next alarm if there are remaining encounters with active timers
+    if (expired.length > 0) {
+      console.info('encounter.alarm', {
+        room: this.ctx.id.name,
+        expired: expired.map(e => e.encounterId),
+      })
+    }
+
     await this.scheduleNextAlarm()
   }
 

@@ -88,7 +88,10 @@ admin.get('/rooms/:roomId/graph', async (c) => {
 
 // DELETE /api/admin/rooms/:roomId/users/:uid
 admin.delete('/rooms/:roomId/users/:uid', async (c) => {
-  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  if (!await verifyAdmin(c)) {
+    console.warn('admin.unauthorized', { room: c.req.param('roomId'), endpoint: c.req.path })
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   const uid    = c.req.param('uid')
   const roomId = c.req.param('roomId')
   await c.env.DB.prepare(
@@ -97,6 +100,7 @@ admin.delete('/rooms/:roomId/users/:uid', async (c) => {
   await c.env.DB.prepare(
     'DELETE FROM users WHERE public_id = ? AND room_id = ?'
   ).bind(uid, roomId).run()
+  console.info('admin.user.deleted', { room: roomId, user: uid })
   return c.json({ ok: true })
 })
 

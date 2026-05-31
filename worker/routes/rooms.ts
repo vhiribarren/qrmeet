@@ -43,11 +43,13 @@ rooms.post('/', async (c) => {
   const ttlDays = parseInt(c.env.ROOM_TTL_DAYS || '7')
   const expiresAt = now + ttlDays * 86400
 
+  const name = body.name ?? 'QRMeet'
   await c.env.DB.prepare(
     'INSERT INTO rooms (id, name, admin_token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(id, body.name ?? 'QRMeet', adminTokenHash, now, expiresAt).run()
+  ).bind(id, name, adminTokenHash, now, expiresAt).run()
 
-  return c.json({ id, name: body.name ?? 'QRMeet', expiresAt })
+  console.info('room.created', { room: id, name, expiresAt })
+  return c.json({ id, name, expiresAt })
 })
 
 rooms.get('/:roomId', async (c) => {

@@ -98,6 +98,7 @@ scan.post('/', async (c) => {
     ).bind(now, existing.id).run()
     const confirmStub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
     await confirmStub.confirmEncounter(existing.id)
+    console.info('encounter.confirmed', { room: roomId, encounter: existing.id, userA, userB })
     return c.json({ action: 'confirmed', encounterId: existing.id })
   }
 
@@ -119,6 +120,7 @@ scan.post('/', async (c) => {
     // request that won the race.
     if (!(e instanceof Error && /UNIQUE/i.test(e.message))) throw e
 
+    console.warn('encounter.concurrent', { room: roomId, userA, userB })
     const concurrent = await c.env.DB.prepare(
       'SELECT * FROM encounters WHERE room_id = ? AND user_a_id = ? AND user_b_id = ?'
     ).bind(roomId, userA, userB).first<Encounter>()
@@ -151,6 +153,7 @@ scan.post('/', async (c) => {
     startedAt: now,
     endsAt: now + duration,
   })
+  console.info('encounter.started', { room: roomId, encounter: encId, userA, userB, endsAt: now + duration })
 
   return c.json({
     action: 'started',
