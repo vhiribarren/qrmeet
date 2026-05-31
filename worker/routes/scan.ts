@@ -106,7 +106,10 @@ scan.post('/', async (c) => {
   await c.env.QR_TOKENS.delete(kvKey)
   const encId = newEncounterId()
   const now = Math.floor(Date.now() / 1000)
-  const duration = parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
+  const room = await c.env.DB.prepare(
+    'SELECT encounter_duration_seconds FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ encounter_duration_seconds: number | null }>()
+  const duration = room?.encounter_duration_seconds ?? parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
 
   try {
     await c.env.DB.prepare(

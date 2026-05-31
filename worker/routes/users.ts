@@ -23,7 +23,7 @@
  */
 
 import { Hono } from 'hono'
-import { Env, User } from '../lib/types'
+import { Env, User, Room } from '../lib/types'
 import type { DurableRoom } from '../durable/DurableRoom'
 import { newPublicId, generateToken, newToken } from '../lib/ids'
 import { extractPrivateToken } from '../lib/auth'
@@ -55,9 +55,18 @@ async function getAuthedUser(c: any): Promise<User | null> {
 users.post('/', async (c) => {
   const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
   const room = await c.env.DB.prepare(
-    'SELECT id FROM rooms WHERE id = ? AND expires_at > ?'
-  ).bind(roomId, Math.floor(Date.now() / 1000)).first()
+    'SELECT id, is_open, max_participants FROM rooms WHERE id = ? AND expires_at > ?'
+  ).bind(roomId, Math.floor(Date.now() / 1000)).first<Pick<Room, 'id' | 'is_open' | 'max_participants'>>()
   if (!room) return c.json({ error: 'Room not found or expired' }, 404)
+  if (!room.is_open) return c.json({ error: 'This room is closed to new participants' }, 403)
+
+  const maxParticipants = room.max_participants ?? parseInt(c.env.MAX_PARTICIPANTS || '100')
+  const count = await c.env.DB.prepare(
+    'SELECT COUNT(*) as n FROM users WHERE room_id = ?'
+  ).bind(roomId).first<{ n: number }>()
+  if ((count?.n ?? 0) >= maxParticipants) {
+    return c.json({ error: 'This room has reached its maximum number of participants' }, 403)
+  }
 
   const publicId = newPublicId()
   const privateToken = generateToken()

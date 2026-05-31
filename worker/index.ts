@@ -30,8 +30,8 @@ import scan from './routes/scan'
 import admin from './routes/admin'
 import board from './routes/board'
 
-import type { DurableRoom } from './durable/DurableRoom'
 export { DurableRoom } from './durable/DurableRoom'
+import { purgeRoom } from './lib/rooms'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -162,13 +162,7 @@ const scheduled: ExportedHandlerScheduledHandler<Env> = async (_event, env, _ctx
   }
 
   for (const { id } of expired.results) {
-    await env.DB.batch([
-      env.DB.prepare('DELETE FROM encounters WHERE room_id = ?').bind(id),
-      env.DB.prepare('DELETE FROM users WHERE room_id = ?').bind(id),
-      env.DB.prepare('DELETE FROM rooms WHERE id = ?').bind(id),
-    ])
-    const stub = env.DURABLE_ROOM.get(env.DURABLE_ROOM.idFromName(id)) as unknown as DurableObjectStub<DurableRoom>
-    await stub.cleanup()
+    await purgeRoom(env.DB, env.DURABLE_ROOM, id)
   }
   console.info('cron.cleanup', { expired: count, rooms: expired.results.map(r => r.id) })
 }

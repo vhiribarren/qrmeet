@@ -58,6 +58,12 @@ function adminApp() {
     expiresAt: 0,
     countdown: '',
     _countdownTimer: null,
+    settingsName: '',
+    settingsIsOpen: true,
+    settingsMaxParticipants: 100,
+    settingsMaxParticipantsIsDefault: true,
+    settingsDuration: 300,
+    settingsDurationIsDefault: true,
 
     async init() {
       const match = window.location.pathname.match(/\/r\/([^/]+)\/admin/)
@@ -196,6 +202,87 @@ function adminApp() {
           return `translate(${d.x},${d.y})`
         })
       })
+    },
+
+    get settingsDurationValid() {
+      return Number.isInteger(this.settingsDuration) && this.settingsDuration >= 1 && this.settingsDuration <= 3600
+    },
+
+    async loadSettings() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/settings`, {
+        headers: { 'x-admin-token': this.token }
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      this.settingsName = data.name
+      this.settingsIsOpen = data.isOpen
+      this.settingsMaxParticipants = data.maxParticipants
+      this.settingsMaxParticipantsIsDefault = data.maxParticipantsIsDefault
+      this.settingsDuration = data.encounterDurationSeconds
+      this.settingsDurationIsDefault = data.encounterDurationIsDefault
+    },
+
+    async saveSettings() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/settings`, {
+        method: 'PUT',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: this.settingsName.trim(),
+          isOpen: this.settingsIsOpen,
+          maxParticipants: this.settingsMaxParticipants,
+          encounterDurationSeconds: this.settingsDuration,
+        }),
+      })
+      if (res.ok) {
+        this.settingsDurationIsDefault = false
+        this.showToast('Settings saved')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        this.showToast(err.error || 'Failed to save settings')
+      }
+    },
+
+    async resetMaxParticipants() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/settings`, {
+        method: 'PUT',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxParticipants: null }),
+      })
+      if (res.ok) {
+        await this.loadSettings()
+        this.showToast('Max participants reset to server default')
+      } else {
+        this.showToast('Failed to reset max participants')
+      }
+    },
+
+    async resetDuration() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/settings`, {
+        method: 'PUT',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encounterDurationSeconds: null }),
+      })
+      if (res.ok) {
+        await this.loadSettings()
+        this.showToast('Duration reset to server default')
+      } else {
+        this.showToast('Failed to reset duration')
+      }
+    },
+
+    async deleteRoom() {
+      if (!confirm(`Delete room "${this.settingsName || this.roomId}" and all its data? This cannot be undone.`)) return
+      const res = await fetch(`/api/admin/rooms/${this.roomId}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-token': this.token },
+      })
+      if (res.ok) {
+        this.authenticated = false
+        this.showToast('Room deleted')
+        setTimeout(() => { window.location.href = '/' }, 2000)
+      } else {
+        this.showToast('Failed to delete room')
+      }
     },
 
     async deleteUser(uid, name) {

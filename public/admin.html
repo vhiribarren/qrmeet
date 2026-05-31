@@ -84,6 +84,7 @@ SOFTWARE.
         <div class="tabs">
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'leaderboard' }" @click="tab = 'leaderboard'">Leaderboard</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'settings' }" @click="tab = 'settings'; loadSettings()">Settings</button>
         </div>
 
         <!-- Leaderboard Tab -->
@@ -123,6 +124,52 @@ SOFTWARE.
         <!-- Graph Tab -->
         <div x-show="tab === 'graph'">
           <div class="graph" id="admin-graph"></div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div x-show="tab === 'settings'">
+          <div class="settings-form">
+            <h3>Room Name</h3>
+            <div class="settings-form__row">
+              <input type="text" maxlength="40" x-model="settingsName" placeholder="Room name">
+            </div>
+
+            <h3>Registration</h3>
+            <div class="settings-form__row">
+              <label class="settings-toggle">
+                <input type="checkbox" x-model="settingsIsOpen">
+                <span x-text="settingsIsOpen ? 'Open — new participants can join' : 'Closed — no new participants'"></span>
+              </label>
+            </div>
+
+            <h3>Maximum Participants</h3>
+            <p class="settings-form__hint">Maximum number of people allowed to join this room.</p>
+            <div class="settings-form__row">
+              <label for="max-participants-input">Max participants</label>
+              <input id="max-participants-input" type="number" min="1" x-model.number="settingsMaxParticipants">
+              <button class="btn btn--ghost" x-show="!settingsMaxParticipantsIsDefault" @click="resetMaxParticipants()">Reset to default</button>
+            </div>
+            <p class="settings-form__default" x-show="settingsMaxParticipantsIsDefault">Using server default.</p>
+
+            <h3>Encounter Duration</h3>
+            <p class="settings-form__hint">How long each encounter lasts before both parties must scan again to confirm. Maximum 3600 s (1 hour).</p>
+            <div class="settings-form__row">
+              <label for="duration-input">Duration (seconds)</label>
+              <input id="duration-input" type="number" min="1" max="3600" x-model.number="settingsDuration">
+              <button class="btn btn--ghost" x-show="!settingsDurationIsDefault" @click="resetDuration()">Reset to default</button>
+            </div>
+            <p class="settings-form__default" x-show="settingsDurationIsDefault">Using server default.</p>
+
+            <div class="settings-form__actions">
+              <button class="btn btn--primary" @click="saveSettings()" :disabled="!settingsDurationValid || !settingsName.trim()">Save settings</button>
+            </div>
+
+            <hr class="settings-form__divider">
+
+            <h3 class="settings-form__danger-title">Danger Zone</h3>
+            <p class="settings-form__hint">Permanently delete this room and all its data. This cannot be undone.</p>
+            <button class="btn btn--danger" @click="deleteRoom()">Delete this room</button>
+          </div>
         </div>
       </div>
     </template>

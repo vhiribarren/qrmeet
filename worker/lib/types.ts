@@ -28,6 +28,7 @@ export interface Env {
   DURABLE_ROOM: DurableObjectNamespace
   ASSETS: Fetcher
   ENCOUNTER_DURATION_SECONDS: string
+  MAX_PARTICIPANTS: string
   ROOM_TTL_DAYS: string
 }
 
@@ -37,6 +38,9 @@ export interface Room {
   admin_token_hash: string
   created_at: number
   expires_at: number
+  encounter_duration_seconds: number | null
+  max_participants: number | null
+  is_open: number
 }
 
 export interface User {
