@@ -40,7 +40,7 @@ Cloudflare Worker (Hono)
 | `name` | TEXT | Display name for the event |
 | `admin_token_hash` | TEXT | SHA-256 of the admin password |
 | `created_at` | INTEGER | Unix timestamp |
-| `expires_at` | INTEGER | Unix timestamp, always `created_at + 86400` (24h) |
+| `expires_at` | INTEGER | Unix timestamp, `created_at` + `ROOM_TTL_DAYS` (default 7 days) |
 
 ### `users`
 | Column | Type | Description |
@@ -194,3 +194,14 @@ QR tokens are stored in KV (not D1) with a 1-hour TTL for two reasons:
 ### No `ON DELETE CASCADE` on encounters
 
 The `encounters` table references `users(public_id)` without `CASCADE`. Deleting a user therefore requires explicitly deleting their encounters first (done in the admin delete route). This is intentional: it avoids silent data loss if a delete is triggered by mistake, and keeps the migration schema simple.
+
+### Scheduled cleanup of expired rooms
+
+Rooms carry an `expires_at` (`created_at` + `ROOM_TTL_DAYS`, default 7 days). An hourly **Cron Trigger** (`[triggers].crons` in `wrangler.toml`, handled by `scheduled()` in `worker/index.ts`) deletes every expired room and all of its data: encounters → users → rooms in D1 (in that order, since encounters has no `ON DELETE CASCADE`), then a `POST /cleanup` to the room's Durable Object, which clears its `active_encounters` table and cancels any pending alarm.
+
+This is the single mechanism that bounds data retention. Consequences:
+- Personal data lives at most `ROOM_TTL_DAYS` (default 7 days) + up to 1h (next cron tick) — matching the Privacy notice. The board and admin pages display a live countdown to the deletion time (`expiresAt`).
+- The Durable Object's `active_encounters` table cannot outlive its room, so abandoned (timed-out, never confirmed) encounters cannot accumulate indefinitely.
+- `expires_at` is **not** enforced on the request path: between expiry and the next cron tick a room stays usable (scan/board/admin). This is an accepted trade-off (an expired room means the event is over) that keeps the hot `scan` path free of an extra room lookup.
+
+> Known limit: within a single very large, very active room, timed-out-but-unconfirmed encounters still accumulate in the Durable Object until the room is cleaned up. If this becomes a problem, add a `purge_at` grace window to `active_encounters` and purge from the `alarm()` handler.

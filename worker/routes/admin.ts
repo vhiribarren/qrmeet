@@ -44,6 +44,10 @@ async function verifyAdmin(c: any): Promise<boolean> {
 admin.get('/rooms/:roomId/scores', async (c) => {
   if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
 
+  const room = await c.env.DB.prepare(
+    'SELECT expires_at FROM rooms WHERE id = ?'
+  ).bind(c.req.param('roomId')).first<{ expires_at: number }>()
+
   const scores = await c.env.DB.prepare(`
     SELECT
       u.public_id,
@@ -60,7 +64,7 @@ admin.get('/rooms/:roomId/scores', async (c) => {
     ORDER BY score DESC, u.created_at ASC
   `).bind(c.req.param('roomId')).all()
 
-  return c.json({ scores: scores.results })
+  return c.json({ scores: scores.results, expiresAt: room?.expires_at ?? null })
 })
 
 // GET /api/admin/rooms/:roomId/graph

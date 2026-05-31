@@ -41,6 +41,7 @@ Create a new room. The client sends a SHA-256 hash of the password (never the pl
 ```json
 { "id": "abc123", "name": "Team Building 2026", "expiresAt": 1234567890 }
 ```
+`expiresAt` is `created_at` + the configurable room lifetime (`ROOM_TTL_DAYS` env var, default 7 days).
 
 ---
 
@@ -177,7 +178,8 @@ Top 10 leaderboard.
 {
   "scores": [{ "public_id": "...", "display_name": "Alice", "emoji": "🦁", "score": 5 }],
   "totalParticipants": 42,
-  "roomName": "Team Building 2026"
+  "roomName": "Team Building 2026",
+  "expiresAt": 1234567890
 }
 ```
 
@@ -208,7 +210,8 @@ Full ranked leaderboard with creation dates.
 {
   "scores": [
     { "public_id": "...", "display_name": "Alice", "emoji": "🦁", "created_at": 1716800000, "score": 5 }
-  ]
+  ],
+  "expiresAt": 1234567890
 }
 ```
 

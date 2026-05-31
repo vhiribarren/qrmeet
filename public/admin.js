@@ -24,6 +24,23 @@ import { storage } from './storage.js'
  * SOFTWARE.
  */
 
+// Turns a Unix expiry timestamp into a human-readable data-deletion notice.
+function formatCountdown(expiresAt) {
+  if (!expiresAt) return ''
+  const secs = expiresAt - Math.floor(Date.now() / 1000)
+  if (secs <= 0) return '🗑 Data has been deleted'
+  const d = Math.floor(secs / 86400)
+  const h = Math.floor((secs % 86400) / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  let parts
+  if (d > 0)      parts = `${d}d ${h}h`
+  else if (h > 0) parts = `${h}h ${m}m`
+  else if (m > 0) parts = `${m}m ${s}s`
+  else            parts = `${s}s`
+  return `🗑 Data auto-deletes in ${parts}`
+}
+
 function adminApp() {
   return {
     roomId: '',
@@ -38,15 +55,27 @@ function adminApp() {
     tab: 'leaderboard',
     toast: '',
     graphData: null,
+    expiresAt: 0,
+    countdown: '',
+    _countdownTimer: null,
 
     async init() {
       const match = window.location.pathname.match(/\/r\/([^/]+)\/admin/)
       if (match) this.roomId = match[1]
+      this.startCountdown()
       const saved = storage.get('adminPassword')
       if (saved) {
         this.token = saved
         await this.authenticate()
       }
+    },
+
+    // ── Data-deletion countdown ──
+    startCountdown() {
+      if (this._countdownTimer) clearInterval(this._countdownTimer)
+      const tick = () => { this.countdown = formatCountdown(this.expiresAt) }
+      tick()
+      this._countdownTimer = setInterval(tick, 1000)
     },
 
     async hashPassword(password) {
@@ -89,6 +118,7 @@ function adminApp() {
       if (!res.ok) return
       const data = await res.json()
       this.scores = data.scores || []
+      this.expiresAt = data.expiresAt || 0
       this.topScore = this.scores.length > 0 ? this.scores[0].score : 0
       this.totalMeetings = this.scores.reduce((sum, u) => sum + (u.score || 0), 0) / 2
       this.totalMeetings = Math.floor(this.totalMeetings)

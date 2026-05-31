@@ -29,16 +29,17 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["SessionDO"]
-
-[[migrations]]
-tag = "v2"
-deleted_classes = ["SessionDO"]
 new_sqlite_classes = ["DurableRoom"]
+
+[triggers]
+# Hourly cleanup of expired rooms (see scheduled() in worker/index.ts)
+crons = ["0 * * * *"]
 
 [vars]
 ENCOUNTER_DURATION_SECONDS = "300"
 MAX_JOINS_PER_IP = "100"
+# Room lifetime in days before automatic deletion (cron). Default: 7.
+ROOM_TTL_DAYS = "7"
 
 [observability]
 enabled = true

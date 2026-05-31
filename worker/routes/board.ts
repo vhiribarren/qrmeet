@@ -31,8 +31,8 @@ const board = new Hono<{ Bindings: Env }>()
 board.get('/scores', async (c) => {
   const roomId = c.req.param('roomId') as string
   const room = await c.env.DB.prepare(
-    'SELECT id, name FROM rooms WHERE id = ?'
-  ).bind(roomId).first<{ id: string; name: string }>()
+    'SELECT id, name, expires_at FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ id: string; name: string; expires_at: number }>()
   if (!room) return c.json({ error: 'Room not found' }, 404)
 
   const scores = await c.env.DB.prepare(`
@@ -55,7 +55,7 @@ board.get('/scores', async (c) => {
     'SELECT COUNT(*) as count FROM users WHERE room_id = ?'
   ).bind(roomId).first<{ count: number }>()
 
-  return c.json({ scores: scores.results, totalParticipants: totalUsers?.count ?? 0, roomName: room.name })
+  return c.json({ scores: scores.results, totalParticipants: totalUsers?.count ?? 0, roomName: room.name, expiresAt: room.expires_at })
 })
 
 // GET /api/rooms/:roomId/board/graph — public, all nodes & edges

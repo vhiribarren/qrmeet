@@ -29,6 +29,7 @@ export interface Env {
   ASSETS: Fetcher
   ENCOUNTER_DURATION_SECONDS: string
   MAX_JOINS_PER_IP: string
+  ROOM_TTL_DAYS: string
 }
 
 export interface Room {

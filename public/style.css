@@ -344,6 +344,13 @@ emoji-picker {
   background-clip: text;
 }
 .board-header__sub { color: var(--text-muted); font-size: 14px; }
+.admin-header__expiry,
+.board-header__expiry {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
 
 .auth-gate {
   max-width: 360px; margin: 80px auto; text-align: center;

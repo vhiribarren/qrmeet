@@ -214,6 +214,14 @@ export class DurableRoom extends DurableObject<Env> {
       return new Response('ok')
     }
 
+    // Wipe all room state (called by the cron when the room expires)
+    if (url.pathname === '/cleanup') {
+      this.encounters.clear()
+      this.ctx.storage.sql.exec('DELETE FROM active_encounters')
+      await this.ctx.storage.deleteAlarm()
+      return new Response('ok')
+    }
+
     return new Response('Not found', { status: 404 })
   }
 

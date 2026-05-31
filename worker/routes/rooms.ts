@@ -39,7 +39,9 @@ rooms.post('/', async (c) => {
   // adminPassword is a client-side hash of the original password; we hash it again for storage.
   const adminTokenHash = await hashToken(body.adminPassword)
   const now = Math.floor(Date.now() / 1000)
-  const expiresAt = now + 86400 // 24h
+  // Room lifetime is configurable via ROOM_TTL_DAYS (default: 7 days).
+  const ttlDays = parseInt(c.env.ROOM_TTL_DAYS || '7')
+  const expiresAt = now + ttlDays * 86400
 
   await c.env.DB.prepare(
     'INSERT INTO rooms (id, name, admin_token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)'

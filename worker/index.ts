@@ -144,4 +144,25 @@ app.all('*', async (c) => {
   return res
 })
 
-export default app
+// Periodic cleanup of expired rooms (Cron Trigger).
+// For every room past its 24h expires_at, deletes encounters → users → rooms
+// (encounters has no ON DELETE CASCADE, by design) and wipes the room's Durable
+// Object so its active-encounter table and alarm don't outlive the room.
+const scheduled: ExportedHandlerScheduledHandler<Env> = async (_event, env, _ctx) => {
+  const now = Math.floor(Date.now() / 1000)
+  const expired = await env.DB.prepare(
+    'SELECT id FROM rooms WHERE expires_at <= ?'
+  ).bind(now).all<{ id: string }>()
+
+  for (const { id } of expired.results) {
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM encounters WHERE room_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM users WHERE room_id = ?').bind(id),
+      env.DB.prepare('DELETE FROM rooms WHERE id = ?').bind(id),
+    ])
+    const stub = env.DURABLE_ROOM.get(env.DURABLE_ROOM.idFromName(id))
+    await stub.fetch(new Request('https://internal/cleanup', { method: 'POST' }))
+  }
+}
+
+export default { fetch: app.fetch, scheduled }
