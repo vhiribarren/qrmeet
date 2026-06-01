@@ -32,6 +32,7 @@ SOFTWARE.
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
   <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js" integrity="sha384-e9EFD6BGC90bkW9aDV5xbbBfzwN7G8YImHao2lfLVKV/hPB0E0go+H3I64h7oHtA" crossorigin="anonymous"></script>
   <script type="module" src="/admin.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh" crossorigin="anonymous"></script>
 </head>
@@ -62,6 +63,7 @@ SOFTWARE.
           <h1>🛠 Admin Dashboard</h1>
           <p class="admin-header__sub" x-text="'Room: ' + roomId"></p>
           <p class="admin-header__expiry" x-show="countdown" x-text="countdown"></p>
+          <a :href="'/r/' + roomId + '/board'" target="_blank" rel="noopener" class="btn btn--ghost">📊 Open Board</a>
         </div>
 
         <!-- Stat Cards -->
@@ -82,9 +84,20 @@ SOFTWARE.
 
         <!-- Tabs -->
         <div class="tabs">
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'; $nextTick(() => generateRoomQr())">Join</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'leaderboard' }" @click="tab = 'leaderboard'">Leaderboard</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'settings' }" @click="tab = 'settings'; loadSettings()">Settings</button>
+        </div>
+
+        <!-- Join Tab -->
+        <div x-show="tab === 'join'">
+          <div class="join-tab">
+            <div class="qr-box" id="room-qr"></div>
+            <button class="copy-url-btn" @click="copyUrl()">
+              <span x-text="copied ? '✓ Copied!' : '📋 Copy Room URL'"></span>
+            </button>
+          </div>
         </div>
 
         <!-- Leaderboard Tab -->

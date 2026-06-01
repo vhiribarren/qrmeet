@@ -52,7 +52,8 @@ function adminApp() {
     scores: [],
     totalMeetings: 0,
     topScore: 0,
-    tab: 'leaderboard',
+    tab: 'join',
+    copied: false,
     toast: '',
     graphData: null,
     expiresAt: 0,
@@ -108,8 +109,10 @@ function adminApp() {
           return
         }
         storage.set('adminPassword', this.token)
+        storage.set('roomId', this.roomId)
         this.authenticated = true
         await this.loadScores()
+        this.$nextTick(() => this.generateRoomQr())
       } catch (e) {
         this.authError = 'Connection error'
       } finally {
@@ -277,6 +280,7 @@ function adminApp() {
         headers: { 'x-admin-token': this.token },
       })
       if (res.ok) {
+        storage.clearSession()
         this.authenticated = false
         this.showToast('Room deleted')
         setTimeout(() => { window.location.href = '/' }, 2000)
@@ -297,6 +301,24 @@ function adminApp() {
       } else {
         this.showToast('Failed to remove user')
       }
+    },
+
+    generateRoomQr() {
+      const container = document.getElementById('room-qr')
+      if (!container) return
+      const url = `${window.location.origin}/r/${this.roomId}`
+      const qr = qrcode(0, 'M')
+      qr.addData(url)
+      qr.make()
+      container.innerHTML = qr.createImgTag(5, 0)
+    },
+
+    copyUrl() {
+      const url = `${window.location.origin}/r/${this.roomId}`
+      navigator.clipboard.writeText(url).then(() => {
+        this.copied = true
+        setTimeout(() => { this.copied = false }, 2000)
+      })
     },
 
     showToast(msg) {

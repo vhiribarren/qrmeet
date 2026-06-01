@@ -169,6 +169,14 @@ function qrmeet() {
         return
       }
 
+      // Admin credentials saved → go directly to admin dashboard
+      const adminPassword = storage.get('adminPassword')
+      const savedRoomId = storage.get('roomId')
+      if (adminPassword && savedRoomId) {
+        location.replace(`/r/${savedRoomId}/admin`)
+        return
+      }
+
       // Check localStorage for existing session
       const saved = this.loadSaved()
       if (saved) {
@@ -230,7 +238,8 @@ function qrmeet() {
         })
         if (!ok) throw new Error(data.error)
         storage.set('adminPassword', passwordHash)
-        this.createdRoom = data
+        storage.set('roomId', data.id)
+        window.location.href = `/r/${data.id}/admin`
       } catch (e) {
         this.showToast(e.message)
       }
