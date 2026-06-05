@@ -145,12 +145,14 @@ function qrmeet() {
         // Check if user is already in a different room
         const saved = this.loadSaved()
         if (saved?.roomId && saved.roomId !== roomId) {
-          this.me = saved.me
-          this.roomId = saved.roomId
-          this.savedSession = saved
-          this.page = 'landing'
-          this.showToast('This QR is from a different room. Switch rooms first.')
-          return
+          if (confirm(`You are currently in room "${saved.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
+            this.performSwitchRoom()
+          } else {
+            this.me = saved.me
+            this.roomId = saved.roomId
+            await this.enterRoom()
+            return
+          }
         }
 
         this.roomId = roomId
@@ -164,7 +166,19 @@ function qrmeet() {
       // Handle room URL: /r/:roomId
       const roomMatch = path.match(/^\/r\/([^/]+)$/)
       if (roomMatch) {
-        this.joinCode = roomMatch[1]
+        const roomId = roomMatch[1]
+        const saved = this.loadSaved()
+        if (saved?.roomId && saved.roomId !== roomId) {
+          if (confirm(`You are currently in room "${saved.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
+            this.performSwitchRoom()
+          } else {
+            this.me = saved.me
+            this.roomId = saved.roomId
+            await this.enterRoom()
+            return
+          }
+        }
+        this.joinCode = roomId
         await this.joinRoom()
         return
       }
@@ -252,8 +266,7 @@ function qrmeet() {
       await this.enterRoom()
     },
 
-    switchRoom() {
-      if (!confirm('This will disconnect you from your current room. If you rejoin later, you\'ll start with a new profile and lose your score. Continue?')) return
+    performSwitchRoom() {
       // Close WebSocket
       if (this.ws) { try { this.ws.close() } catch {} }
       clearTimeout(this.wsReconnectTimer)
@@ -266,6 +279,11 @@ function qrmeet() {
       this.scoreData = null
       this.qrReady = false
       this.clearSaved()
+    },
+
+    switchRoom() {
+      if (!confirm('This will disconnect you from your current room. If you rejoin later, you\'ll start with a new profile and lose your score. Continue?')) return
+      this.performSwitchRoom()
       history.replaceState({}, '', '/')
       this.page = 'landing'
     },
@@ -501,6 +519,13 @@ function qrmeet() {
         const roomMatch = parsed.pathname.match(/^\/r\/([^/]+)$/)
         if (roomMatch) {
           const [, roomId] = roomMatch
+          if (this.roomId && roomId !== this.roomId) {
+            if (confirm(`You are currently in room "${this.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
+              this.performSwitchRoom()
+            } else {
+              return
+            }
+          }
           this.joinCode = roomId
           this.joinRoom()
           return
@@ -514,8 +539,11 @@ function qrmeet() {
 
           // Block cross-room scans
           if (this.roomId && roomId !== this.roomId) {
-            this.showToast('This person is in a different room')
-            return
+            if (confirm(`You are currently in room "${this.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
+              this.performSwitchRoom()
+            } else {
+              return
+            }
           }
 
           this.roomId = roomId

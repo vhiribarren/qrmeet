@@ -9,22 +9,26 @@ QRMeet is a networking game for in-person events. Participants scan each other's
 ## App activation — User journey
 
 ```mermaid
-graph LR
+graph TD
     A[Opens /] --> SA{Standalone PWA with session?}
     SA -- Yes --> CardView
     SA -- No --> Landing
 
-    B[Opens /r/roomId] --> HS{Has session for this room?}
+    B[Opens /r/roomId] --> DR{Session for diff room?}
+    DR -- Yes --> Conf{Confirm switch?}
+    Conf -- Yes --> Reset[Reset state] --> Join[Join as new user] --> CardView
+    Conf -- No --> CardView (old room)
+    DR -- No --> HS{Has session for this room?}
     HS -- Yes --> CardView
-    HS -- No --> Join[Join as new user] --> CardView
+    HS -- No --> Join
 
-    C[Opens scan URL] --> DR{Different room?}
-    DR -- Yes --> Landing
-    DR -- No --> HS2{Has session?}
-    HS2 -- Yes --> CardView
-    HS2 -- No --> AutoJoin[Auto-join] --> CardView
-
-    Landing --> CardView
+    C[Opens scan URL] --> DR2{Session for diff room?}
+    DR2 -- Yes --> Conf2{Confirm switch?}
+    Conf2 -- Yes --> Reset2[Reset state] --> AutoJoin[Auto-join / Join] --> Scan[Process scan]
+    Conf2 -- No --> CardView (old room)
+    DR2 -- No --> HS2{Has session for this room?}
+    HS2 -- Yes --> Scan
+    HS2 -- No --> AutoJoin
 ```
 
 ---
