@@ -166,6 +166,22 @@ label { font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bott
 code { background: #e0e7ff; padding: 2px 6px; border-radius: 6px; font-family: monospace; font-size: 13px; word-break: break-all; }
 .create-result__hint { color: var(--text-muted); font-size: 13px; }
 
+/* ── INSTALL BANNER ── */
+.install-banner {
+  background: var(--surface); border-radius: var(--radius);
+  border: 2px solid var(--primary);
+  padding: 16px; box-shadow: 0 4px 12px rgba(99,102,241,0.15);
+}
+.install-banner__content {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.install-banner__text { display: flex; flex-direction: column; gap: 4px; }
+.install-banner__text strong { font-size: 15px; color: var(--text); }
+.install-banner__text span { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
+.install-banner__actions { display: flex; align-items: center; gap: 8px; }
+.install-banner__btn { min-height: 36px; padding: 6px 16px; font-size: 14px; flex: 1; }
+.install-banner__close { min-height: 36px; padding: 6px 12px; font-size: 16px; width: auto; color: var(--text-muted); }
+
 /* ── ID CARD ── */
 .card-page { display: flex; flex-direction: column; gap: 20px; }
 .id-card {
@@ -500,6 +516,8 @@ emoji-picker {
   code { background: #1e1b4b; color: #a5b4fc; }
 
   .create-result { background: #0d2218; }
+
+  .install-banner { box-shadow: 0 4px 12px rgba(99,102,241,0.25); background: #16162a; }
 
   .pending { background: #1f1907; border-color: #78350f; }
   .score-item--pending { background: #1f1907; }

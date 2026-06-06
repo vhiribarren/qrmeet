@@ -120,6 +120,11 @@ function qrmeet() {
     scannerStream: null,
     cameraBlocked: false,
 
+    // PWA Install
+    installPromptEvent: null,
+    showInstallBanner: false,
+    isIosInstallable: false,
+
     // Toast
     toast: null,
     toastTimer: null,
@@ -133,6 +138,28 @@ function qrmeet() {
 
     // ── Init ──
     async init() {
+      // Check for iOS Safari (not standalone)
+      const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone
+      if (isIos && !isStandalone) {
+        this.isIosInstallable = true
+      }
+
+      // Listen for PWA install prompt
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault()
+        this.installPromptEvent = e
+        if (this.page === 'card' && !storage.get('installBannerDismissed')) {
+          this.showInstallBanner = true
+        }
+      })
+
+      this.$watch('page', (val) => {
+        if (val === 'card' && (this.installPromptEvent || this.isIosInstallable) && !storage.get('installBannerDismissed')) {
+          this.showInstallBanner = true
+        }
+      })
+
       // Check URL for scan or room
       const path = location.pathname
 
@@ -762,6 +789,23 @@ function qrmeet() {
       this.toast = msg
       clearTimeout(this.toastTimer)
       this.toastTimer = setTimeout(() => { this.toast = null }, 3500)
+    },
+
+    // ── PWA Installation ──
+    async installApp() {
+      if (!this.installPromptEvent) return
+      this.installPromptEvent.prompt()
+      const { outcome } = await this.installPromptEvent.userChoice
+      if (outcome === 'accepted') {
+        this.showInstallBanner = false
+        storage.set('installBannerDismissed', true)
+        this.installPromptEvent = null
+      }
+    },
+
+    dismissInstallBanner() {
+      this.showInstallBanner = false
+      storage.set('installBannerDismissed', true)
     },
   }
 }

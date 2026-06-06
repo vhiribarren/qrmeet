@@ -132,6 +132,33 @@ SOFTWARE.
     <!-- ── CARD PAGE ── -->
     <div class="page page--with-nav" x-show="page === 'card'" x-transition:enter="page-enter">
       <div class="card-page">
+        
+        <!-- Install Banner -->
+        <div class="install-banner" x-show="showInstallBanner" x-transition>
+          <!-- Standard PWA Prompt -->
+          <div class="install-banner__content" x-show="installPromptEvent">
+            <div class="install-banner__text">
+              <strong>📱 Install QRMeet</strong>
+              <span>Add to home screen so you don't lose your room during the event.</span>
+            </div>
+            <div class="install-banner__actions">
+              <button class="btn btn--primary install-banner__btn" @click="installApp()">Install</button>
+              <button class="btn btn--ghost install-banner__close" @click="dismissInstallBanner()">✕</button>
+            </div>
+          </div>
+          
+          <!-- iOS PWA Prompt -->
+          <div class="install-banner__content" x-show="!installPromptEvent && isIosInstallable">
+            <div class="install-banner__text">
+              <strong>📱 Install QRMeet</strong>
+              <span>Tap the <strong>Share</strong> icon below, then select <strong>Add to Home Screen</strong>.</span>
+            </div>
+            <div class="install-banner__actions">
+              <button class="btn btn--ghost install-banner__btn" style="background: var(--bg); color: var(--text-muted); font-size: 14px; min-height: 36px; padding: 6px 16px;" @click="dismissInstallBanner()">Got it</button>
+            </div>
+          </div>
+        </div>
+
         <div class="id-card" @click="editingName = false">
           <div class="emoji-field">
             <button class="emoji-field__display" @click.stop="toggleEmojiPicker()" x-text="me?.emoji ?? '😊'"></button>
@@ -241,6 +268,19 @@ SOFTWARE.
           <p class="about__tagline">Scan people, have conversations, earn points.</p>
         </div>
 
+        <section class="about__section" x-show="installPromptEvent || isIosInstallable">
+          <h2 class="about__section-title">App Installation</h2>
+          
+          <div x-show="installPromptEvent" style="display: flex; flex-direction: column; gap: 10px;">
+            <p class="about__section-body">Install QRMeet on your device's home screen for quick access during the event without losing your tab.</p>
+            <button class="btn btn--secondary" @click="installApp()">Install QRMeet</button>
+          </div>
+
+          <div x-show="!installPromptEvent && isIosInstallable">
+            <p class="about__section-body">To install QRMeet on your iPhone or iPad, tap the <strong>Share</strong> icon below, then select <strong>Add to Home Screen</strong>.</p>
+          </div>
+        </section>
+
         <section class="about__section">
           <h2 class="about__section-title">Privacy</h2>
           <div class="about__section-body">
@@ -261,6 +301,8 @@ SOFTWARE.
           <h2 class="about__section-title">Disclaimer</h2>
           <p class="about__section-body">This service is provided free of charge, as-is, and may be taken offline at any time without notice. The author makes no guarantees of availability, reliability, or data retention, and accepts no liability for any use made of this application.</p>
         </section>
+
+
 
         <section class="about__section">
           <h2 class="about__section-title">Reset</h2>
