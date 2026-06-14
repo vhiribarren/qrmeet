@@ -29,9 +29,12 @@ import users from './routes/users'
 import scan from './routes/scan'
 import admin from './routes/admin'
 import board from './routes/board'
+import frontend from './routes/frontend'
 
 export { DurableRoom } from './durable/DurableRoom'
 import { purgeRoom } from './lib/rooms'
+import { csp } from './middleware/csp'
+import { servePage } from './lib/assets'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -41,7 +44,7 @@ const app = new Hono<{ Bindings: Env }>()
 // - https://cdn.jsdelivr.net is needed for the CDN scripts AND for
 //   emoji-picker-element fetching its emoji data JSON at runtime (connect-src).
 // - SRI (integrity) on the CDN <script> tags guarantees their content.
-const CSP = [
+const CSP_DIRECTIVES = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -56,19 +59,9 @@ const CSP = [
   "connect-src 'self' https://cdn.jsdelivr.net https://cloudflareinsights.com",
   "worker-src 'self'",
   "manifest-src 'self'",
-].join('; ')
+]
 
-// Set CSP on HTML responses only (skips API JSON, static assets and WS upgrades).
-app.use('*', async (c, next) => {
-  await next()
-  const contentType = c.res.headers.get('content-type') ?? ''
-  if (!contentType.includes('text/html')) return
-  // ASSETS responses have immutable headers, so rebuild the response to set them.
-  const res = new Response(c.res.body, c.res)
-  res.headers.set('Content-Security-Policy', CSP)
-  c.res = res
-})
-
+app.use('*', csp(CSP_DIRECTIVES))
 
 // Always return JSON errors from API routes
 app.onError((err, c) => {
@@ -81,68 +74,18 @@ app.route('/api/rooms/:roomId/users', users)
 app.route('/api/rooms/:roomId/scan', scan)
 app.route('/api/rooms/:roomId/board', board)
 app.route('/api/admin', admin)
+app.route('/r', frontend)
 
-// WebSocket: /api/rooms/:roomId/users/:uid/ws
-// All connections go through DurableRoom
-app.get('/api/rooms/:roomId/users/:uid/ws', async (c) => {
-  const { roomId, uid } = c.req.param()
-  // Browsers cannot set custom headers on WebSocket connections, so the private
-  // token is carried in the Sec-WebSocket-Protocol header as the two subprotocol
-  // values `qrmeet.token, <token>`. This keeps it out of the URL (and therefore
-  // out of access/observability logs). Non-browser clients may use x-private-token.
-  const subprotocols = (c.req.header('sec-websocket-protocol') ?? '').split(',').map((s) => s.trim())
-  const protoToken = subprotocols[0] === 'qrmeet.token' ? subprotocols[1] : undefined
-  const privateToken = c.req.header('x-private-token') ?? protoToken
+// Explicitly serve index.html for the root path.
+// We cannot rely on Wrangler's native SPA routing (`not_found_handling = "single-page-application"`)
+// because native asset fallbacks bypass the worker entirely. This would result in the edge
+// serving index.html *without* passing through our CSP middleware, breaking the security model.
+app.get('/', (c) => servePage(c, 'index.html'))
 
-  if (!privateToken) return c.json({ error: 'Unauthorized' }, 401)
-
-  const user = await c.env.DB.prepare(
-    'SELECT * FROM users WHERE public_id = ? AND private_token = ? AND room_id = ?'
-  ).bind(uid, privateToken, roomId).first()
-  if (!user) return c.json({ error: 'Unauthorized' }, 401)
-
-  // Proxy to DurableRoom
-  const doId = c.env.DURABLE_ROOM.idFromName(roomId)
-  const stub = c.env.DURABLE_ROOM.get(doId)
-  const wsUrl = new URL(c.req.url)
-  wsUrl.pathname = '/ws'
-  wsUrl.searchParams.delete('t') // never forward a token in the URL
-  wsUrl.searchParams.set('userId', uid)
-
-  return stub.fetch(new Request(wsUrl.toString(), c.req.raw))
-})
-
-// Admin page: /r/:roomId/admin
-app.get('/r/:roomId/admin', async (c) => {
-  const url = new URL(c.req.url)
-  url.pathname = '/admin.html'
-  return c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw))
-})
-
-// Public board: /r/:roomId/board
-app.get('/r/:roomId/board', async (c) => {
-  const url = new URL(c.req.url)
-  url.pathname = '/board.html'
-  return c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw))
-})
-
-// SPA fallback: /r/:roomId and /r/:roomId/scan/:uid → serve index.html
-app.get('/r/*', async (c) => {
-  const url = new URL(c.req.url)
-  url.pathname = '/index.html'
-  return c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw))
-})
-
-// Serve static assets (frontend)
+// Serve static assets (CSS, JS, images) via the worker in local dev (`wrangler dev`).
+// In production (`run_worker_first = false`), this block only catches invalid routes and cleanly returns a 404.
 app.all('*', async (c) => {
-  // Try the exact path first, then fall back to /index.html for SPA
-  const res = await c.env.ASSETS.fetch(c.req.raw)
-  if (res.status === 404) {
-    const indexUrl = new URL(c.req.url)
-    indexUrl.pathname = '/index.html'
-    return c.env.ASSETS.fetch(new Request(indexUrl.toString(), c.req.raw))
-  }
-  return res
+  return c.env.ASSETS.fetch(c.req.raw)
 })
 
 // Periodic cleanup of expired rooms (Cron Trigger).
