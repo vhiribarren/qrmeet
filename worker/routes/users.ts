@@ -51,8 +51,31 @@ async function getAuthedUser(c: any): Promise<User | null> {
   ).bind(uid, privateToken, roomId).first() as Promise<User | null>
 }
 
+// Known bot/crawler User-Agent substrings that must never create a user.
+// These headless agents render pages fully (including JS) but are not real
+// participants. The list intentionally stays short — only agents observed to
+// trigger POST /users in production should be added here.
+const BOT_UA_PATTERNS = [
+  'googlebot', 'google-read-aloud', 'bingbot', 'slurp', 'duckduckbot',
+  'baiduspider', 'yandexbot', 'facebookexternalhit', 'twitterbot',
+  'linkedinbot', 'whatsapp', 'telegrambot', 'applebot', 'headlesschrome',
+  'puppeteer', 'playwright', 'selenium',
+]
+
+function isBot(userAgent: string): boolean {
+  const ua = userAgent.toLowerCase()
+  return BOT_UA_PATTERNS.some(p => ua.includes(p))
+}
+
 // POST /api/rooms/:roomId/users — join room
 users.post('/', async (c) => {
+  // Reject known bots and headless crawlers. These agents can render JS
+  // fully and would otherwise create ghost users.
+  const ua = c.req.header('user-agent') ?? ''
+  if (isBot(ua)) {
+    return c.json({ error: 'Automated agents cannot join a room' }, 403)
+  }
+
   const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
   const room = await c.env.DB.prepare(
     'SELECT id, is_open, max_participants, ip_salt FROM rooms WHERE id = ? AND expires_at > ?'
@@ -65,6 +88,20 @@ users.post('/', async (c) => {
   const ipHash = rawIp && room.ip_salt
     ? await hmacIp(rawIp, room.ip_salt)
     : null
+
+  // Idempotency: if this IP already joined this room in the last 30 seconds,
+  // return the existing user instead of creating a duplicate. This prevents ghost
+  // users created by messaging-app link previews, iOS WebView pre-loads, or any
+  // other automated HTTP agent that executes the page's JavaScript.
+  if (ipHash) {
+    const recent = await c.env.DB.prepare(
+      'SELECT public_id, private_token, display_name FROM users WHERE room_id = ? AND ip_hash = ? AND created_at >= ?'
+    ).bind(roomId, ipHash, Math.floor(Date.now() / 1000) - 30).first<{ public_id: string; private_token: string; display_name: string }>()
+    if (recent) {
+      console.info('user.rejoined', { room: roomId, user: recent.public_id })
+      return c.json({ publicId: recent.public_id, privateToken: recent.private_token, displayName: recent.display_name }, 201)
+    }
+  }
 
   const count = await c.env.DB.prepare(
     'SELECT COUNT(*) as n FROM users WHERE room_id = ?'

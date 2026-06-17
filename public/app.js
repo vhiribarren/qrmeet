@@ -95,6 +95,7 @@ function qrmeet() {
     sessionSecondsLeft: 0,
     sessionTimer: null,
     pendingSessions: [],
+    _joiningRoom: false, // guard against concurrent joinRoom() calls
 
     // Landing
     joinMode: false,
@@ -318,18 +319,24 @@ function qrmeet() {
     async joinRoom(code) {
       const roomId = (code ?? this.joinCode).trim().toLowerCase()
       if (!roomId) return
-      this.roomId = roomId
 
-      // Check if we already have credentials for this room
-      const saved = this.loadSaved()
-      if (saved?.roomId === roomId && saved?.me) {
-        this.me = saved.me
-        await this.enterRoom()
-        return
-      }
+      // Guard against concurrent calls (e.g. user clicks "Join" while init() is
+      // already auto-joining the same room from the URL).
+      if (this._joiningRoom) return
+      this._joiningRoom = true
 
-      // Join as new user
       try {
+        this.roomId = roomId
+
+        // Check if we already have credentials for this room
+        const saved = this.loadSaved()
+        if (saved?.roomId === roomId && saved?.me) {
+          this.me = saved.me
+          await this.enterRoom()
+          return
+        }
+
+        // Join as new user
         const { ok, data } = await apiFetch(`/api/rooms/${roomId}/users`, { method: 'POST' })
         if (!ok) throw new Error(data.error || 'Could not join room')
         const emoji = randomEmoji()
@@ -340,6 +347,8 @@ function qrmeet() {
         await this.enterRoom()
       } catch (e) {
         this.showToast(e.message)
+      } finally {
+        this._joiningRoom = false
       }
     },
 
@@ -352,17 +361,27 @@ function qrmeet() {
     },
 
     async ensureUser() {
-      const saved = this.loadSaved()
-      if (saved?.roomId === this.roomId && saved?.me) {
-        this.me = saved.me
-        return
+      // If this component instance already has a user in memory, reuse it
+      if (this.me && this.roomId) return
+
+      // Reuse the same guard as joinRoom() to prevent concurrent user creation
+      if (this._joiningRoom) return
+      this._joiningRoom = true
+      try {
+        const saved = this.loadSaved()
+        if (saved?.roomId === this.roomId && saved?.me) {
+          this.me = saved.me
+          return
+        }
+        const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users`, { method: 'POST' })
+        if (!ok) throw new Error(data.error || 'Could not join room')
+        const emoji = randomEmoji()
+        this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: data.displayName, emoji }
+        this.save()
+        await this.updateProfile({ emoji })
+      } finally {
+        this._joiningRoom = false
       }
-      const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users`, { method: 'POST' })
-      if (!ok) throw new Error(data.error || 'Could not join room')
-      const emoji = randomEmoji()
-      this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: data.displayName, emoji }
-      this.save()
-      await this.updateProfile({ emoji })
     },
 
     // ── Profile ──
