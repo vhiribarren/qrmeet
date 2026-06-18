@@ -640,13 +640,18 @@ function qrmeet() {
 
         if (data.action === 'started') {
           const offset = (data.serverTime || Math.floor(Date.now() / 1000)) - Math.floor(Date.now() / 1000)
+          // The question is delivered by the WebSocket session_start push, which the
+          // server sends *before* this HTTP response. If it already arrived for this
+          // encounter, keep it — otherwise this response would clobber it back to null
+          // and the question would only reappear after a manual refresh.
+          const knownQuestion = this.session?.encounterId === data.encounterId ? this.session.question : null
           this.session = {
             encounterId: data.encounterId,
             endsAt: data.endsAt - offset,
             partnerName: data.partner.displayName,
             partnerEmoji: data.partner.emoji,
             confirmed: false,
-            question: null, // question comes via WebSocket session_start push
+            question: knownQuestion,
           }
           this.startSessionTimer()
           this.scanState = 'success'
