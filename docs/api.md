@@ -143,10 +143,12 @@ The server:
 1. Verifies the scanner's identity via `privateToken`.
 2. Verifies the QR token against KV (the token is **not burned** if the scan would be rejected).
 3. Checks whether an open encounter already exists between the pair:
-   - **No encounter** → burns token, creates encounter row, picks two random questions from the room's pool (one per participant), notifies `DurableRoom`, returns `started`. If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
+   - **No encounter** → checks the busy guard below, then burns token, creates encounter row, picks two random questions from the room's pool (one per participant), notifies `DurableRoom`, returns `started`. If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
    - **Open encounter, `notified_at` not set** → session still in progress, returns `409`.
    - **Open encounter, `notified_at` set** → burns token, marks encounter as `counted = 1`, notifies `DurableRoom`, returns `confirmed`.
    - **Counted encounter** → returns `409`.
+
+   **Busy guard** (new-encounter path only): a user may hold only **one active conversation at a time**. Before creating a new encounter, the server rejects with `409` if the scanner *or* the scannee already has an encounter whose timer is still running (`notified_at IS NULL AND counted = 0`) with a third party. The QR token is **not** burned, so the scannee's card stays valid. The error message distinguishes whether it is the scanner or the scannee who is busy. Encounters awaiting confirmation (`notified_at` set, timer elapsed) do **not** count as busy.
 
 **Response `200` — session started**
 ```json

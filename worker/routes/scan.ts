@@ -104,6 +104,29 @@ scan.post('/', async (c) => {
     return c.json({ action: 'confirmed', encounterId: existing.id })
   }
 
+  // Guard: a user can only hold one active conversation at a time. Block if the
+  // scanner or the scannee is already in an encounter whose timer is still running
+  // (notified_at IS NULL, counted 0) with a third party. We only reach this point
+  // when there is no existing scanner↔scannee encounter, so any match here is with
+  // someone else. Don't burn the QR token — the scannee's card must stay valid.
+  const busy = await c.env.DB.prepare(
+    `SELECT user_a_id, user_b_id FROM encounters
+     WHERE room_id = ? AND notified_at IS NULL AND counted = 0
+       AND (user_a_id IN (?, ?) OR user_b_id IN (?, ?))
+     LIMIT 1`
+  ).bind(roomId, scanner.public_id, scannee.public_id, scanner.public_id, scannee.public_id)
+    .first<{ user_a_id: string; user_b_id: string }>()
+
+  if (busy) {
+    const scannerBusy = busy.user_a_id === scanner.public_id || busy.user_b_id === scanner.public_id
+    console.info('encounter.busy', { room: roomId, scanner: scanner.public_id, scannee: scannee.public_id, scannerBusy })
+    return c.json({
+      error: scannerBusy
+        ? "You're already in a conversation — finish it before scanning someone new."
+        : 'This person is already in a conversation with someone else. Try again in a moment.',
+    }, 409)
+  }
+
   // New encounter — burn token
   await c.env.QR_TOKENS.delete(kvKey)
   const encId = newEncounterId()

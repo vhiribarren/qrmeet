@@ -72,7 +72,9 @@ graph TD
     C -- No --> ERR1[Invalid or expired QR]
     C -- Yes --> D{Existing encounter between A and B?}
 
-    D -- No --> E[Create encounter]
+    D -- No --> BUSY{A or B already in an active conversation?}
+    BUSY -- Yes --> ERR4[Already in a conversation, finish it first]
+    BUSY -- No --> E[Create encounter]
     E --> F[Burn QR token]
     F --> G[Notify DurableRoom]
     G --> H[Start timer]
