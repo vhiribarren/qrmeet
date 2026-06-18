@@ -24,8 +24,9 @@
 
 import { Hono } from 'hono'
 import { Env } from '../lib/types'
-import { newRoomId, generateToken } from '../lib/ids'
+import { newRoomId, generateToken, newPublicId } from '../lib/ids'
 import { hashToken } from '../lib/auth'
+import { DEFAULT_QUESTIONS } from '../lib/questions'
 
 const rooms = new Hono<{ Bindings: Env }>()
 
@@ -48,6 +49,16 @@ rooms.post('/', async (c) => {
   await c.env.DB.prepare(
     'INSERT INTO rooms (id, name, admin_token_hash, created_at, expires_at, ip_salt) VALUES (?, ?, ?, ?, ?, ?)'
   ).bind(id, name, adminTokenHash, now, expiresAt, ipSalt).run()
+
+  // Seed default questions for this room
+  const questionInserts = DEFAULT_QUESTIONS.map(text =>
+    c.env.DB.prepare(
+      'INSERT INTO questions (id, room_id, text, created_at) VALUES (?, ?, ?, ?)'
+    ).bind(newPublicId(), id, text, now)
+  )
+  if (questionInserts.length > 0) {
+    await c.env.DB.batch(questionInserts)
+  }
 
   console.info('room.created', { room: id, name, expiresAt })
   return c.json({ id, name, expiresAt })

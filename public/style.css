@@ -230,6 +230,19 @@ emoji-picker {
 .session-active__label { font-size: 16px; color: var(--text); }
 .session-active__timer { font-size: 28px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
 .session-active__timer--urgent { color: var(--danger); animation: pulse 1s infinite; }
+.session-active__question {
+  margin-top: 12px; padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; max-width: 280px;
+}
+.session-active__question-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted); margin: 0 0 4px;
+}
+.session-active__question-text {
+  font-size: 14px; color: var(--text); margin: 0; line-height: 1.45;
+  font-style: italic;
+}
 
 /* ── PENDING ── */
 .pending {
@@ -425,6 +438,21 @@ emoji-picker {
 .remove-btn:hover { background: #fef2f2; }
 
 .graph { width: 100%; height: 400px; background: var(--surface); border-radius: 12px; overflow: hidden; }
+
+/* ── QUESTIONS TAB (admin) ── */
+.questions-tab { display: flex; flex-direction: column; gap: 16px; }
+.questions-tab__hint { color: var(--text-muted); font-size: 14px; margin: 0; }
+.questions-tab__add { display: flex; gap: 8px; align-items: center; }
+.questions-tab__add .btn { flex-shrink: 0; white-space: nowrap; padding: 0 16px; min-height: 40px; font-size: 14px; width: auto; }
+.questions-tab__input { flex: 1; min-width: 0; width: auto; font-size: 14px; padding: 10px 14px; }
+.questions-tab__empty { text-align: center; color: var(--text-muted); padding: 40px; }
+.questions-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.questions-list__item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px;
+}
+.questions-list__text { flex: 1; font-size: 14px; color: var(--text); }
 
 .settings-form { background: var(--surface); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
 .settings-form h3 { font-size: 15px; font-weight: 700; margin: 0; }

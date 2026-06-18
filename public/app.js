@@ -91,7 +91,7 @@ function qrmeet() {
     me: null,           // { publicId, privateToken, displayName, emoji }
     roomId: null,
     scoreData: null,
-    session: null,      // active session info
+    session: null,      // active session info { encounterId, endsAt, partnerName, partnerEmoji, confirmed, question }
     sessionSecondsLeft: 0,
     sessionTimer: null,
     pendingSessions: [],
@@ -646,6 +646,7 @@ function qrmeet() {
             partnerName: data.partner.displayName,
             partnerEmoji: data.partner.emoji,
             confirmed: false,
+            question: null, // question comes via WebSocket session_start push
           }
           this.startSessionTimer()
           this.scanState = 'success'
@@ -723,6 +724,7 @@ function qrmeet() {
           partnerName: msg.partnerName,
           partnerEmoji: msg.partnerEmoji,
           confirmed: false,
+          question: msg.question ?? null,
         }
         this.startSessionTimer()
         this.loadScore()

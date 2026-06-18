@@ -87,6 +87,7 @@ SOFTWARE.
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'; $nextTick(() => generateRoomQr())">Join</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'leaderboard' }" @click="tab = 'leaderboard'">Leaderboard</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'questions' }" @click="tab = 'questions'; loadQuestions()">Questions</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'settings' }" @click="tab = 'settings'; loadSettings()">Settings</button>
         </div>
 
@@ -148,6 +149,31 @@ SOFTWARE.
           <div class="graph" id="admin-graph"></div>
         </div>
 
+        <!-- Questions Tab -->
+        <div x-show="tab === 'questions'">
+          <div class="questions-tab">
+            <p class="questions-tab__hint">These questions are shown to participants during a conversation to help break the ice. Defaults apply to all rooms; you can hide them or add your own.</p>
+
+            <div class="questions-tab__add">
+              <input type="text" x-model="newQuestionText" maxlength="200"
+                placeholder="Add a custom question…"
+                @keyup.enter="addQuestion()"
+                class="questions-tab__input">
+              <button class="btn btn--primary" @click="addQuestion()" :disabled="!newQuestionText.trim()">Add</button>
+            </div>
+
+            <ul class="questions-list">
+              <template x-for="q in questions" :key="q.id">
+                <li class="questions-list__item">
+                  <span class="questions-list__text" x-text="q.text"></span>
+                  <button class="remove-btn" @click="deleteQuestion(q)">Remove</button>
+                </li>
+              </template>
+            </ul>
+            <p class="questions-tab__empty" x-show="questions.length === 0">No questions yet.</p>
+          </div>
+        </div>
+
         <!-- Settings Tab -->
         <div x-show="tab === 'settings'">
           <div class="settings-form">
@@ -161,6 +187,14 @@ SOFTWARE.
               <label class="settings-toggle">
                 <input type="checkbox" x-model="settingsIsOpen">
                 <span x-text="settingsIsOpen ? 'Open — new participants can join' : 'Closed — no new participants'"></span>
+              </label>
+            </div>
+
+            <h3>Conversation Questions</h3>
+            <div class="settings-form__row">
+              <label class="settings-toggle">
+                <input type="checkbox" x-model="settingsQuestionsEnabled">
+                <span x-text="settingsQuestionsEnabled ? 'Enabled — a question is suggested at the start of each conversation' : 'Disabled — no question suggestions'"></span>
               </label>
             </div>
 

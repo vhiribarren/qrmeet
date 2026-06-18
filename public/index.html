@@ -188,6 +188,10 @@ SOFTWARE.
                 <p class="session-active__timer" :class="{ 'session-active__timer--urgent': sessionSecondsLeft <= 30 }">
                   <span x-text="formatTime(sessionSecondsLeft)"></span>
                 </p>
+                <div class="session-active__question" x-show="session.question">
+                  <p class="session-active__question-label">You could ask:</p>
+                  <p class="session-active__question-text" x-text="session.question"></p>
+                </div>
               </div>
             </template>
             <!-- No active session or timer expired: show QR code -->

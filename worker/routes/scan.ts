@@ -27,6 +27,7 @@ import { Env, User, Encounter } from '../lib/types'
 import type { DurableRoom } from '../durable/DurableRoom'
 import { newEncounterId } from '../lib/ids'
 import { extractPrivateToken } from '../lib/auth'
+import { pickTwoQuestions } from '../lib/questions'
 
 const scan = new Hono<{ Bindings: Env }>()
 
@@ -107,8 +108,8 @@ scan.post('/', async (c) => {
   const encId = newEncounterId()
   const now = Math.floor(Date.now() / 1000)
   const room = await c.env.DB.prepare(
-    'SELECT encounter_duration_seconds FROM rooms WHERE id = ?'
-  ).bind(roomId).first<{ encounter_duration_seconds: number | null }>()
+    'SELECT encounter_duration_seconds, questions_enabled FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ encounter_duration_seconds: number | null; questions_enabled: number }>()
   const duration = room?.encounter_duration_seconds ?? parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
 
   try {
@@ -145,6 +146,15 @@ scan.post('/', async (c) => {
   }
 
   const startStub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
+  const questionsEnabled = (room?.questions_enabled ?? 1) !== 0
+  let questionA = ''
+  let questionB = ''
+  if (questionsEnabled) {
+    const rows = await c.env.DB.prepare(
+      'SELECT text FROM questions WHERE room_id = ? ORDER BY RANDOM() LIMIT 2'
+    ).bind(roomId).all<{ text: string }>()
+    ;[questionA, questionB] = pickTwoQuestions(rows.results)
+  }
   await startStub.startEncounter({
     encounterId: encId,
     userAId: userA,
@@ -155,6 +165,8 @@ scan.post('/', async (c) => {
     userBEmoji: userBRecord.emoji,
     startedAt: now,
     endsAt: now + duration,
+    questionA,
+    questionB,
   })
   console.info('encounter.started', { room: roomId, encounter: encId, userA, userB, endsAt: now + duration })
 

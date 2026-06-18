@@ -35,6 +35,8 @@ export interface ActiveEncounter {
   userBEmoji: string
   startedAt: number
   endsAt: number
+  questionA: string   // conversation prompt shown to user A
+  questionB: string   // conversation prompt shown to user B
 }
 
 export class DurableRoom extends DurableObject<Env> {
@@ -56,7 +58,9 @@ export class DurableRoom extends DurableObject<Env> {
         user_b_name TEXT NOT NULL,
         user_b_emoji TEXT NOT NULL,
         started_at INTEGER NOT NULL,
-        ends_at INTEGER NOT NULL
+        ends_at INTEGER NOT NULL,
+        question_a TEXT NOT NULL DEFAULT '',
+        question_b TEXT NOT NULL DEFAULT ''
       )
     `)
 
@@ -76,6 +80,8 @@ export class DurableRoom extends DurableObject<Env> {
         userBEmoji: row.user_b_emoji as string,
         startedAt: row.started_at as number,
         endsAt: row.ends_at as number,
+        questionA: (row.question_a as string) ?? '',
+        questionB: (row.question_b as string) ?? '',
       })
     }
   }
@@ -106,6 +112,7 @@ export class DurableRoom extends DurableObject<Env> {
           serverTime: Math.floor(Date.now() / 1000),
           partnerName: isA ? encounter.userBName : encounter.userAName,
           partnerEmoji: isA ? encounter.userBEmoji : encounter.userAEmoji,
+          question: isA ? encounter.questionA : encounter.questionB,
         }))
       } else {
         server.send(JSON.stringify({ type: 'connected' }))
@@ -143,11 +150,11 @@ export class DurableRoom extends DurableObject<Env> {
 
     this.ctx.storage.sql.exec(
       `INSERT OR REPLACE INTO active_encounters
-       (encounter_id, user_a_id, user_b_id, user_a_name, user_a_emoji, user_b_name, user_b_emoji, started_at, ends_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (encounter_id, user_a_id, user_b_id, user_a_name, user_a_emoji, user_b_name, user_b_emoji, started_at, ends_at, question_a, question_b)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       data.encounterId, data.userAId, data.userBId,
       data.userAName, data.userAEmoji, data.userBName, data.userBEmoji,
-      data.startedAt, data.endsAt
+      data.startedAt, data.endsAt, data.questionA, data.questionB
     )
 
     const now = Math.floor(Date.now() / 1000)
@@ -158,6 +165,7 @@ export class DurableRoom extends DurableObject<Env> {
       serverTime: now,
       partnerName: data.userBName,
       partnerEmoji: data.userBEmoji,
+      question: data.questionA,
     })
     const msgB = JSON.stringify({
       type: 'session_start',
@@ -166,6 +174,7 @@ export class DurableRoom extends DurableObject<Env> {
       serverTime: now,
       partnerName: data.userAName,
       partnerEmoji: data.userAEmoji,
+      question: data.questionB,
     })
     this.sendToUser(data.userAId, msgA)
     this.sendToUser(data.userBId, msgB)

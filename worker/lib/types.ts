@@ -42,6 +42,7 @@ export interface Room {
   encounter_duration_seconds: number | null
   max_participants: number | null
   is_open: number
+  questions_enabled: number
 }
 
 export interface User {

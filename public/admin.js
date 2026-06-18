@@ -61,10 +61,13 @@ function adminApp() {
     _countdownTimer: null,
     settingsName: '',
     settingsIsOpen: true,
+    settingsQuestionsEnabled: true,
     settingsMaxParticipants: 100,
     settingsMaxParticipantsIsDefault: true,
     settingsDuration: 300,
     settingsDurationIsDefault: true,
+    questions: [],
+    newQuestionText: '',
 
     async init() {
       const match = window.location.pathname.match(/\/r\/([^/]+)\/admin/)
@@ -219,6 +222,7 @@ function adminApp() {
       const data = await res.json()
       this.settingsName = data.name
       this.settingsIsOpen = data.isOpen
+      this.settingsQuestionsEnabled = data.questionsEnabled
       this.settingsMaxParticipants = data.maxParticipants
       this.settingsMaxParticipantsIsDefault = data.maxParticipantsIsDefault
       this.settingsDuration = data.encounterDurationSeconds
@@ -232,6 +236,7 @@ function adminApp() {
         body: JSON.stringify({
           name: this.settingsName.trim(),
           isOpen: this.settingsIsOpen,
+          questionsEnabled: this.settingsQuestionsEnabled,
           maxParticipants: this.settingsMaxParticipants,
           encounterDurationSeconds: this.settingsDuration,
         }),
@@ -319,6 +324,46 @@ function adminApp() {
         this.copied = true
         setTimeout(() => { this.copied = false }, 2000)
       })
+    },
+
+    // ── Questions ──
+    async loadQuestions() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/questions`, {
+        headers: { 'x-admin-token': this.token }
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      this.questions = data.questions || []
+    },
+
+    async addQuestion() {
+      const text = this.newQuestionText.trim()
+      if (!text) return
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/questions`, {
+        method: 'POST',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      if (res.ok) {
+        this.newQuestionText = ''
+        await this.loadQuestions()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        this.showToast(err.error || 'Failed to add question')
+      }
+    },
+
+    async deleteQuestion(q) {
+      if (!confirm(`Remove "${q.text}"?`)) return
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/questions/${q.id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-token': this.token },
+      })
+      if (res.ok) {
+        await this.loadQuestions()
+      } else {
+        this.showToast('Failed to remove question')
+      }
     },
 
     showToast(msg) {

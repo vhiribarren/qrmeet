@@ -65,6 +65,18 @@ Cloudflare Worker (Hono)
 
 A `UNIQUE(room_id, user_a_id, user_b_id)` constraint prevents the same pair from starting a second session after completing one.
 
+### `questions`
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PK | 12-character random ID |
+| `room_id` | TEXT FK | Parent room (`ON DELETE CASCADE`) |
+| `text` | TEXT | Question text (NULL for tombstone rows) |
+| `default_slug` | TEXT | Slug of the default question being hidden (NULL for custom questions) |
+| `is_default` | INTEGER | `1` = tombstone hiding a default question; `0` = custom question added by organiser |
+| `created_at` | INTEGER | Unix timestamp |
+
+Default questions are hardcoded in `worker/lib/questions.ts`. A row with `is_default = 1` records that the organiser has hidden the default question identified by `default_slug`. Custom questions have `is_default = 0` and a non-NULL `text`.
+
 ---
 
 ## KV namespace — `QR_TOKENS`

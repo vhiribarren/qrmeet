@@ -26,6 +26,7 @@ import { Hono } from 'hono'
 import { Env, Room } from '../lib/types'
 import { hashToken } from '../lib/auth'
 import { purgeRoom } from '../lib/rooms'
+import { newPublicId } from '../lib/ids'
 
 const MAX_ENCOUNTER_DURATION_SECONDS = 3600
 
@@ -97,8 +98,8 @@ admin.get('/rooms/:roomId/settings', async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
   const room = await c.env.DB.prepare(
-    'SELECT name, is_open, encounter_duration_seconds, max_participants FROM rooms WHERE id = ?'
-  ).bind(c.req.param('roomId')).first<Pick<Room, 'name' | 'is_open' | 'encounter_duration_seconds' | 'max_participants'>>()
+    'SELECT name, is_open, encounter_duration_seconds, max_participants, questions_enabled FROM rooms WHERE id = ?'
+  ).bind(c.req.param('roomId')).first<Pick<Room, 'name' | 'is_open' | 'encounter_duration_seconds' | 'max_participants' | 'questions_enabled'>>()
   if (!room) return c.json({ error: 'Room not found' }, 404)
 
   const defaultDuration = parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
@@ -106,6 +107,7 @@ admin.get('/rooms/:roomId/settings', async (c) => {
   return c.json({
     name: room.name,
     isOpen: room.is_open === 1,
+    questionsEnabled: room.questions_enabled !== 0,
     encounterDurationSeconds: room.encounter_duration_seconds ?? defaultDuration,
     encounterDurationIsDefault: room.encounter_duration_seconds === null,
     maxParticipants: room.max_participants ?? defaultMaxParticipants,
@@ -123,6 +125,7 @@ admin.put('/rooms/:roomId/settings', async (c) => {
   const body = await c.req.json<{
     name?: string
     isOpen?: boolean
+    questionsEnabled?: boolean
     encounterDurationSeconds?: number | null
     maxParticipants?: number | null
   }>()
@@ -140,6 +143,11 @@ admin.put('/rooms/:roomId/settings', async (c) => {
   if (body.isOpen !== undefined) {
     updates.push('is_open = ?')
     params.push(body.isOpen ? 1 : 0)
+  }
+
+  if (body.questionsEnabled !== undefined) {
+    updates.push('questions_enabled = ?')
+    params.push(body.questionsEnabled ? 1 : 0)
   }
 
   if (body.encounterDurationSeconds !== undefined) {
@@ -202,6 +210,53 @@ admin.delete('/rooms/:roomId/users/:uid', async (c) => {
     'DELETE FROM users WHERE public_id = ? AND room_id = ?'
   ).bind(uid, roomId).run()
   console.info('admin.user.deleted', { room: roomId, user: uid })
+  return c.json({ ok: true })
+})
+
+// ── Question management ──
+
+// GET /api/admin/rooms/:roomId/questions
+admin.get('/rooms/:roomId/questions', async (c) => {
+  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+
+  const rows = await c.env.DB.prepare(
+    'SELECT id, text FROM questions WHERE room_id = ? ORDER BY created_at ASC'
+  ).bind(roomId).all<{ id: string; text: string }>()
+
+  return c.json({ questions: rows.results })
+})
+
+// POST /api/admin/rooms/:roomId/questions
+// Body: { text: string }
+admin.post('/rooms/:roomId/questions', async (c) => {
+  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+  const body = await c.req.json<{ text?: string }>()
+  const text = body.text?.trim().slice(0, 200)
+  if (!text) return c.json({ error: 'text is required' }, 400)
+
+  const id = newPublicId()
+  const now = Math.floor(Date.now() / 1000)
+  await c.env.DB.prepare(
+    'INSERT INTO questions (id, room_id, text, created_at) VALUES (?, ?, ?, ?)'
+  ).bind(id, roomId, text, now).run()
+
+  console.info('admin.question.added', { room: roomId, id })
+  return c.json({ id, text }, 201)
+})
+
+// DELETE /api/admin/rooms/:roomId/questions/:qid
+admin.delete('/rooms/:roomId/questions/:qid', async (c) => {
+  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+  const qid    = c.req.param('qid')
+
+  await c.env.DB.prepare(
+    'DELETE FROM questions WHERE id = ? AND room_id = ?'
+  ).bind(qid, roomId).run()
+
+  console.info('admin.question.deleted', { room: roomId, id: qid })
   return c.json({ ok: true })
 })
 
