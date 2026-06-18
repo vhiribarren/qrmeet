@@ -39,10 +39,7 @@ export interface Room {
   created_at: number
   expires_at: number
   ip_salt: string
-  encounter_duration_seconds: number | null
-  max_participants: number | null
-  is_open: number
-  questions_enabled: number
+  settings: string   // JSON blob — see worker/lib/settings.ts
 }
 
 export interface User {

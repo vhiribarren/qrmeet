@@ -27,6 +27,7 @@ import { Env, Room } from '../lib/types'
 import { hashToken } from '../lib/auth'
 import { purgeRoom } from '../lib/rooms'
 import { newPublicId } from '../lib/ids'
+import { parseSettings, resolveSettings, RoomSettings } from '../lib/settings'
 
 const MAX_ENCOUNTER_DURATION_SECONDS = 3600
 
@@ -98,20 +99,26 @@ admin.get('/rooms/:roomId/settings', async (c) => {
     return c.json({ error: 'Unauthorized' }, 401)
   }
   const room = await c.env.DB.prepare(
-    'SELECT name, is_open, encounter_duration_seconds, max_participants, questions_enabled FROM rooms WHERE id = ?'
-  ).bind(c.req.param('roomId')).first<Pick<Room, 'name' | 'is_open' | 'encounter_duration_seconds' | 'max_participants' | 'questions_enabled'>>()
+    'SELECT name, settings FROM rooms WHERE id = ?'
+  ).bind(c.req.param('roomId')).first<Pick<Room, 'name' | 'settings'>>()
   if (!room) return c.json({ error: 'Room not found' }, 404)
 
-  const defaultDuration = parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
+  const settings = parseSettings(room.settings)
+  const resolved = resolveSettings(settings, c.env)
+  const defaultDuration    = parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
   const defaultMaxParticipants = parseInt(c.env.MAX_PARTICIPANTS || '100')
+
   return c.json({
     name: room.name,
-    isOpen: room.is_open === 1,
-    questionsEnabled: room.questions_enabled !== 0,
-    encounterDurationSeconds: room.encounter_duration_seconds ?? defaultDuration,
-    encounterDurationIsDefault: room.encounter_duration_seconds === null,
-    maxParticipants: room.max_participants ?? defaultMaxParticipants,
-    maxParticipantsIsDefault: room.max_participants === null,
+    isOpen:                      settings.isOpen,
+    questionsEnabled:            settings.questionsEnabled,
+    encounterDurationSeconds:    resolved.encounterDurationSeconds,
+    encounterDurationIsDefault:  settings.encounterDurationSeconds === null,
+    maxParticipants:             resolved.maxParticipants,
+    maxParticipantsIsDefault:    settings.maxParticipants === null,
+    // expose defaults so the UI can show them
+    defaultEncounterDurationSeconds: defaultDuration,
+    defaultMaxParticipants:          defaultMaxParticipants,
   })
 })
 
@@ -130,54 +137,48 @@ admin.put('/rooms/:roomId/settings', async (c) => {
     maxParticipants?: number | null
   }>()
 
-  const updates: string[] = []
-  const params: unknown[] = []
-
+  // Validate name separately — it is a top-level column, not part of settings JSON
   if (body.name !== undefined) {
     const name = body.name.trim().slice(0, 40)
     if (!name) return c.json({ error: 'name cannot be empty' }, 400)
-    updates.push('name = ?')
-    params.push(name)
+    await c.env.DB.prepare('UPDATE rooms SET name = ? WHERE id = ?').bind(name, roomId).run()
   }
 
-  if (body.isOpen !== undefined) {
-    updates.push('is_open = ?')
-    params.push(body.isOpen ? 1 : 0)
-  }
-
-  if (body.questionsEnabled !== undefined) {
-    updates.push('questions_enabled = ?')
-    params.push(body.questionsEnabled ? 1 : 0)
-  }
-
-  if (body.encounterDurationSeconds !== undefined) {
-    const value = body.encounterDurationSeconds
-    if (value !== null) {
-      if (!Number.isInteger(value) || value < 1 || value > MAX_ENCOUNTER_DURATION_SECONDS) {
-        return c.json({ error: `encounterDurationSeconds must be an integer between 1 and ${MAX_ENCOUNTER_DURATION_SECONDS}` }, 400)
-      }
+  // Validate numeric settings
+  if (body.encounterDurationSeconds !== null && body.encounterDurationSeconds !== undefined) {
+    const v = body.encounterDurationSeconds
+    if (!Number.isInteger(v) || v < 1 || v > MAX_ENCOUNTER_DURATION_SECONDS) {
+      return c.json({ error: `encounterDurationSeconds must be an integer between 1 and ${MAX_ENCOUNTER_DURATION_SECONDS}` }, 400)
     }
-    updates.push('encounter_duration_seconds = ?')
-    params.push(value)
   }
-
-  if (body.maxParticipants !== undefined) {
-    const value = body.maxParticipants
-    if (value !== null) {
-      if (!Number.isInteger(value) || value < 1) {
-        return c.json({ error: 'maxParticipants must be an integer >= 1' }, 400)
-      }
+  if (body.maxParticipants !== null && body.maxParticipants !== undefined) {
+    const v = body.maxParticipants
+    if (!Number.isInteger(v) || v < 1) {
+      return c.json({ error: 'maxParticipants must be an integer >= 1' }, 400)
     }
-    updates.push('max_participants = ?')
-    params.push(value)
   }
 
-  if (updates.length === 0) return c.json({ error: 'Nothing to update' }, 400)
+  // Merge incoming fields into the existing settings blob
+  const existing = await c.env.DB.prepare(
+    'SELECT settings FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ settings: string }>()
+  if (!existing) return c.json({ error: 'Room not found' }, 404)
 
-  params.push(roomId)
+  const current = parseSettings(existing.settings)
+  const updated: RoomSettings = {
+    isOpen:                   body.isOpen                   ?? current.isOpen,
+    questionsEnabled:         body.questionsEnabled         ?? current.questionsEnabled,
+    encounterDurationSeconds: body.encounterDurationSeconds !== undefined
+                                ? body.encounterDurationSeconds
+                                : current.encounterDurationSeconds,
+    maxParticipants:          body.maxParticipants !== undefined
+                                ? body.maxParticipants
+                                : current.maxParticipants,
+  }
+
   await c.env.DB.prepare(
-    `UPDATE rooms SET ${updates.join(', ')} WHERE id = ?`
-  ).bind(...params).run()
+    'UPDATE rooms SET settings = ? WHERE id = ?'
+  ).bind(JSON.stringify(updated), roomId).run()
 
   console.info('admin.settings.updated', { room: roomId, updates: Object.keys(body) })
   return c.json({ ok: true })

@@ -28,6 +28,7 @@ import type { DurableRoom } from '../durable/DurableRoom'
 import { newPublicId, generateToken, newToken } from '../lib/ids'
 import { extractPrivateToken, hmacIp } from '../lib/auth'
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
+import { parseSettings, resolveSettings } from '../lib/settings'
 
 function randomName(): string {
   return uniqueNamesGenerator({ dictionaries: [adjectives, animals], style: 'capital', separator: ' ' })
@@ -78,12 +79,16 @@ users.post('/', async (c) => {
 
   const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
   const room = await c.env.DB.prepare(
-    'SELECT id, is_open, max_participants, ip_salt FROM rooms WHERE id = ? AND expires_at > ?'
-  ).bind(roomId, Math.floor(Date.now() / 1000)).first<Pick<Room, 'id' | 'is_open' | 'max_participants' | 'ip_salt'>>()
+    'SELECT id, settings, ip_salt FROM rooms WHERE id = ? AND expires_at > ?'
+  ).bind(roomId, Math.floor(Date.now() / 1000)).first<Pick<Room, 'id' | 'settings' | 'ip_salt'>>()
   if (!room) return c.json({ error: 'Room not found or expired' }, 404)
-  if (!room.is_open) return c.json({ error: 'This room is closed to new participants' }, 403)
 
-  const maxParticipants = room.max_participants ?? parseInt(c.env.MAX_PARTICIPANTS || '100')
+  const settings = parseSettings(room.settings)
+  const resolved = resolveSettings(settings, c.env)
+
+  if (!settings.isOpen) return c.json({ error: 'This room is closed to new participants' }, 403)
+
+  const maxParticipants = resolved.maxParticipants
   const rawIp = c.req.header('cf-connecting-ip') ?? ''
   const ipHash = rawIp && room.ip_salt
     ? await hmacIp(rawIp, room.ip_salt)

@@ -1,14 +1,11 @@
 CREATE TABLE rooms (
-  id                         TEXT    PRIMARY KEY,
-  name                       TEXT    NOT NULL DEFAULT 'QRMeet',
-  admin_token_hash           TEXT    NOT NULL,
-  created_at                 INTEGER NOT NULL DEFAULT (unixepoch()),
-  expires_at                 INTEGER NOT NULL,
-  ip_salt                    TEXT    NOT NULL DEFAULT '',
-  encounter_duration_seconds INTEGER,
-  max_participants           INTEGER,
-  is_open                    INTEGER NOT NULL DEFAULT 1,
-  questions_enabled          INTEGER NOT NULL DEFAULT 1
+  id               TEXT    PRIMARY KEY,
+  name             TEXT    NOT NULL DEFAULT 'QRMeet',
+  admin_token_hash TEXT    NOT NULL,
+  created_at       INTEGER NOT NULL DEFAULT (unixepoch()),
+  expires_at       INTEGER NOT NULL,
+  ip_salt          TEXT    NOT NULL DEFAULT '',
+  settings         TEXT    NOT NULL DEFAULT '{}'
 );
 
 CREATE TABLE users (

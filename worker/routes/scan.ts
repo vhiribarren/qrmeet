@@ -28,6 +28,7 @@ import type { DurableRoom } from '../durable/DurableRoom'
 import { newEncounterId } from '../lib/ids'
 import { extractPrivateToken } from '../lib/auth'
 import { pickTwoQuestions } from '../lib/questions'
+import { parseSettings, resolveSettings } from '../lib/settings'
 
 const scan = new Hono<{ Bindings: Env }>()
 
@@ -108,9 +109,11 @@ scan.post('/', async (c) => {
   const encId = newEncounterId()
   const now = Math.floor(Date.now() / 1000)
   const room = await c.env.DB.prepare(
-    'SELECT encounter_duration_seconds, questions_enabled FROM rooms WHERE id = ?'
-  ).bind(roomId).first<{ encounter_duration_seconds: number | null; questions_enabled: number }>()
-  const duration = room?.encounter_duration_seconds ?? parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
+    'SELECT settings FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ settings: string }>()
+  const settings = parseSettings(room?.settings)
+  const resolved = resolveSettings(settings, c.env)
+  const duration = resolved.encounterDurationSeconds
 
   try {
     await c.env.DB.prepare(
@@ -146,10 +149,9 @@ scan.post('/', async (c) => {
   }
 
   const startStub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
-  const questionsEnabled = (room?.questions_enabled ?? 1) !== 0
   let questionA = ''
   let questionB = ''
-  if (questionsEnabled) {
+  if (resolved.questionsEnabled) {
     const rows = await c.env.DB.prepare(
       'SELECT text FROM questions WHERE room_id = ? ORDER BY RANDOM() LIMIT 2'
     ).bind(roomId).all<{ text: string }>()
