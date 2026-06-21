@@ -74,7 +74,7 @@ database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # ← paste here
 ### 3. Create the KV namespace
 
 ```bash
-npx wrangler kv namespace create QR_TOKENS
+npx wrangler kv namespace create QRMEET_TOKENS
 ```
 
 Copy the `id` from the output and paste it into `wrangler.toml`:

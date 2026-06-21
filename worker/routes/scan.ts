@@ -79,7 +79,7 @@ scan.post('/', async (c) => {
 
   // Verify QR token (not burned yet — only burn if we're going to proceed)
   const kvKey = `qrtoken:${roomId}:${body.scanneePublicId}`
-  const storedToken = await c.env.QR_TOKENS.get(kvKey)
+  const storedToken = await c.env.QRMEET_TOKENS.get(kvKey)
   if (!storedToken || storedToken !== body.qrToken) {
     return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
   }
@@ -103,7 +103,7 @@ scan.post('/', async (c) => {
     }
 
     // Timer elapsed and notified — burn token and confirm
-    await c.env.QR_TOKENS.delete(kvKey)
+    await c.env.QRMEET_TOKENS.delete(kvKey)
     const now = Math.floor(Date.now() / 1000)
     await c.env.DB.prepare(
       'UPDATE encounters SET counted = 1, closed_at = ? WHERE id = ?'
@@ -138,7 +138,7 @@ scan.post('/', async (c) => {
   }
 
   // New encounter — burn token
-  await c.env.QR_TOKENS.delete(kvKey)
+  await c.env.QRMEET_TOKENS.delete(kvKey)
   const encId = newEncounterId()
   const now = Math.floor(Date.now() / 1000)
   const resolved = resolveSettings(settings, c.env)

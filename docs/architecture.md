@@ -23,7 +23,7 @@ Browser (PWA, Alpine.js)
   ▼
 Cloudflare Worker (Hono)
   ├── D1 (SQLite)       — rooms, users, encounters
-  ├── KV (QR_TOKENS)    — single-use QR tokens (one per user, TTL 1h)
+  ├── KV (QRMEET_TOKENS)    — single-use QR tokens (one per user, TTL 1h)
   └── Durable Objects (SQLite-backed)
         └── DurableRoom — one instance per room
               ├── WebSocket connections for ALL participants in the room
@@ -105,7 +105,7 @@ A `UNIQUE(treasure_id, user_id)` constraint enforces **one claim per player per 
 
 ---
 
-## KV namespace — `QR_TOKENS`
+## KV namespace — `QRMEET_TOKENS`
 
 Two key patterns, both with a 1-hour TTL:
 

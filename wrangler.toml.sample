@@ -19,7 +19,7 @@ database_name = "qrmeet-db"
 database_id = "<your-d1-database-id>"
 
 [[kv_namespaces]]
-binding = "QR_TOKENS"
+binding = "QRMEET_TOKENS"
 id = "<your-kv-namespace-id>"
 
 [durable_objects]

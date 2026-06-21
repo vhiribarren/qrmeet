@@ -168,7 +168,7 @@ users.post('/:uid/qr-token', async (c) => {
 
   const token = newToken()
   const kvKey = `qrtoken:${user.room_id}:${user.public_id}`
-  await c.env.QR_TOKENS.put(kvKey, token, { expirationTtl: 3600 })
+  await c.env.QRMEET_TOKENS.put(kvKey, token, { expirationTtl: 3600 })
 
   return c.json({ token })
 })

@@ -24,7 +24,7 @@
 
 export interface Env {
   DB: D1Database
-  QR_TOKENS: KVNamespace
+  QRMEET_TOKENS: KVNamespace
   DURABLE_ROOM: DurableObjectNamespace
   ASSETS: Fetcher
   ENCOUNTER_DURATION_SECONDS: string
