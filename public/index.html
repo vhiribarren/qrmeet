@@ -32,6 +32,8 @@ SOFTWARE.
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>QRMeet</title>
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -69,7 +71,7 @@ SOFTWARE.
     <!-- ── LANDING PAGE ── -->
     <div class="page" x-show="page === 'landing'" x-transition:enter="page-enter">
       <div class="landing__hero">
-        <div class="landing__logo">🤝</div>
+        <img class="landing__logo" src="/icon.svg" alt="QRMeet logo">
         <h1>QRMeet</h1>
         <p>Scan people, have conversations, earn points.</p>
       </div>
@@ -273,7 +275,7 @@ SOFTWARE.
                @pointerup="cancelAdminHold()"
                @pointerleave="cancelAdminHold()"
                @pointercancel="cancelAdminHold()"
-               @contextmenu.prevent>🤝</div>
+               @contextmenu.prevent><img src="/icon.svg" alt="QRMeet logo"></div>
           <h1 class="about__title">QRMeet</h1>
           <p class="about__tagline">Scan people, have conversations, earn points.</p>
         </div>

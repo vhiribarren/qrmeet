@@ -108,7 +108,11 @@ html, body {
   background: linear-gradient(145deg, #eef2ff 0%, #fdf4ff 100%);
   border-radius: 20px; margin-bottom: 8px;
 }
-.landing__logo { font-size: 72px; margin-bottom: 16px; }
+.landing__logo {
+  width: 96px; height: 96px; border-radius: 22px;
+  display: block; margin: 0 auto 16px;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, .28);
+}
 .landing__hero h1 {
   font-size: 36px; font-weight: 800;
   background: linear-gradient(135deg, #6366f1, #a855f7);
@@ -496,7 +500,12 @@ emoji-picker {
 /* ── ABOUT PAGE ── */
 .about { display: flex; flex-direction: column; gap: 28px; }
 .about__header { text-align: center; padding: 24px 0 8px; }
-.about__logo { font-size: 48px; margin-bottom: 8px; }
+.about__logo { margin-bottom: 8px; }
+.about__logo img {
+  width: 64px; height: 64px; border-radius: 14px;
+  display: block; margin: 0 auto; pointer-events: none;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, .25);
+}
 .about__title {
   font-size: 28px; font-weight: 800;
   background: linear-gradient(135deg, #6366f1, #a855f7);
