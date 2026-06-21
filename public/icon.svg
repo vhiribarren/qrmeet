@@ -1,22 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#4f46e5"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <g fill="#ffffff">
-    <!-- top-left QR corner -->
-    <rect x="80"  y="80"  width="96" height="96" rx="20"/>
-    <rect x="108" y="108" width="40" height="40" rx="8" fill="#6366f1"/>
-    <!-- top-right QR corner -->
-    <rect x="336" y="80"  width="96" height="96" rx="20"/>
-    <rect x="364" y="108" width="40" height="40" rx="8" fill="#6366f1"/>
-    <!-- bottom-left QR corner -->
-    <rect x="80"  y="336" width="96" height="96" rx="20"/>
-    <rect x="108" y="364" width="40" height="40" rx="8" fill="#6366f1"/>
-    <!-- center handshake emoji -->
-    <text x="256" y="312" font-size="180" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">🤝</text>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%" stop-color="#6366f1"/><stop offset="100%" stop-color="#4f46e5"/></linearGradient></defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(256,256) scale(1.12) translate(-256,-256)">
+    <path fill="#ffffff" d="M196 196 L236 196 L176 256 Z"/>
+    <path fill="#ffffff" d="M276 196 L316 196 L336 256 Z"/>
+    <rect x="150" y="92" width="212" height="116" rx="34" fill="#ffffff"/>
+    <rect x="251.4" y="101.0" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="251.4" y="123.2" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="251.4" y="134.3" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="207.0" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="229.2" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="240.3" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="251.4" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="262.6" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="273.7" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="284.8" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="295.9" y="145.4" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="251.4" y="156.6" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="262.6" y="156.6" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="284.8" y="156.6" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="295.9" y="156.6" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="251.4" y="167.7" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="273.7" y="167.7" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="284.8" y="167.7" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="262.6" y="178.8" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="295.9" y="178.8" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="251.4" y="189.9" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="273.7" y="189.9" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="284.8" y="189.9" width="9.1" height="9.1" rx="2.4" fill="#6366f1"/>
+    <rect x="206.0" y="100.0" width="33.3" height="33.3" rx="6.0" fill="#6366f1"/>
+    <rect x="215.1" y="109.1" width="15.1" height="15.1" rx="3.3" fill="#ffffff"/>
+    <rect x="222.7" y="116.7" width="-0.0" height="-0.0" rx="-0.0" fill="#6366f1"/>
+    <rect x="272.7" y="100.0" width="33.3" height="33.3" rx="6.0" fill="#6366f1"/>
+    <rect x="281.8" y="109.1" width="15.1" height="15.1" rx="3.3" fill="#ffffff"/>
+    <rect x="289.3" y="116.7" width="-0.0" height="-0.0" rx="-0.0" fill="#6366f1"/>
+    <rect x="206.0" y="166.7" width="33.3" height="33.3" rx="6.0" fill="#6366f1"/>
+    <rect x="215.1" y="175.8" width="15.1" height="15.1" rx="3.3" fill="#ffffff"/>
+    <rect x="222.7" y="183.3" width="-0.0" height="-0.0" rx="-0.0" fill="#6366f1"/>
+    <g fill="#f87171"><circle cx="168" cy="300" r="44"/><path d="M108 404 a60 60 0 0 1 120 0 z"/></g>
+    <g fill="#7dd3fc"><circle cx="344" cy="300" r="44"/><path d="M284 404 a60 60 0 0 1 120 0 z"/></g>
   </g>
 </svg>
