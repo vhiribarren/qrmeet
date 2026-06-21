@@ -257,12 +257,22 @@ export class DurableRoom extends DurableObject<Env> {
   }
 
   private findEncounterForUser(userId: string): ActiveEncounter | undefined {
+    // A user can be tied to several encounters in the map at once: at most one
+    // running conversation plus any number of expired-but-unconfirmed ones
+    // (timer fired, never re-scanned). On reconnect we must restore the *active*
+    // conversation — returning an expired one would leave the client on the QR
+    // screen (sessionSecondsLeft <= 0) and hide the real conversation. Prefer a
+    // still-running encounter; fall back to the most recent expired one so a
+    // lone "time's up — scan to confirm" state is still surfaced.
+    const now = Math.floor(Date.now() / 1000)
+    let fallback: ActiveEncounter | undefined
     for (const enc of this.encounters.values()) {
       if (enc.userAId === userId || enc.userBId === userId) {
-        return enc
+        if (enc.endsAt > now) return enc
+        fallback = enc
       }
     }
-    return undefined
+    return fallback
   }
 
   private sendToUser(userId: string, message: string): void {
