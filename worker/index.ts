@@ -76,6 +76,11 @@ app.route('/api/rooms/:roomId/board', board)
 app.route('/api/admin', admin)
 app.route('/r', frontend)
 
+// Admin console: device-local launcher listing every room the organiser
+// administers. Routed through the worker (not a native asset fallback) so the
+// CSP middleware applies, like the other HTML pages.
+app.get('/admin', (c) => servePage(c, 'admin.html'))
+
 // Explicitly serve index.html for the root path.
 // We cannot rely on Wrangler's native SPA routing (`not_found_handling = "single-page-application"`)
 // because native asset fallbacks bypass the worker entirely. This would result in the edge

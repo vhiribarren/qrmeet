@@ -29,7 +29,7 @@ import { servePage } from '../lib/assets'
 const frontend = new Hono<{ Bindings: Env }>()
 
 // Admin page: /r/:roomId/admin
-frontend.get('/:roomId/admin', (c) => servePage(c, 'admin.html'))
+frontend.get('/:roomId/admin', (c) => servePage(c, 'admin-room.html'))
 
 // Public board: /r/:roomId/board
 frontend.get('/:roomId/board', (c) => servePage(c, 'board.html'))

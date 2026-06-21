@@ -157,7 +157,23 @@ storage.set('key', value)    // writes qrmeet.key
 storage.clearSession()       // removes all qrmeet.* session keys
 ```
 
-The `SESSION_KEYS` array in `storage.js` is the single source of truth for which keys are cleared on session reset.
+The `SESSION_KEYS` array in `storage.js` is the single source of truth for which keys are cleared on session reset. It holds **only the player session** (`publicId`, `privateToken`, `roomId`, `displayName`, `emoji`, `qrToken`).
+
+### Admin keychain
+
+Admin credentials are **not** part of the player session — they live in an independent keychain so that resetting the game never logs the organiser out of their rooms, and a device can be both a player (in one room) and an admin (of several rooms) at the same time.
+
+```javascript
+import { adminKeychain } from './storage.js'
+adminKeychain.set(roomId, name, token)  // add/refresh a room
+adminKeychain.get(roomId)               // { name, token } | null
+adminKeychain.list()                    // [{ id, name, token }, …]
+adminKeychain.remove(roomId)            // forget on this device (room not deleted)
+```
+
+It is stored as a single JSON map under `qrmeet.adminKeychain` = `{ "<roomId>": { name, token } }`, where `token` is the hashed admin credential (the same value sent as `x-admin-token`). The keychain is the source of truth for the `/admin` console.
+
+Because the credential *is* the hashed password, no cross-device sync is needed: the organiser re-adds a room on any device via `/admin` → "Add an existing room" (code + password) — there is no global account.
 
 ### API error format
 

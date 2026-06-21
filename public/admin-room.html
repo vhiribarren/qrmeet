@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<!--
+MIT License
+
+Copyright (c) 2026 Vincent Hiribarren
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin – QRmeet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js" integrity="sha384-e9EFD6BGC90bkW9aDV5xbbBfzwN7G8YImHao2lfLVKV/hPB0E0go+H3I64h7oHtA" crossorigin="anonymous"></script>
+  <script type="module" src="/admin-room.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div x-data="adminApp" x-cloak>
+    <!-- Auth Gate -->
+    <template x-if="!authenticated">
+      <div class="auth-gate">
+        <h2>🔐 Admin Login</h2>
+        <template x-if="authLoading">
+          <p class="auth-gate__hint">Authenticating…</p>
+        </template>
+        <template x-if="!authLoading">
+          <form @submit.prevent="login()">
+            <p class="auth-gate__hint">Enter the admin password you set when creating this room.</p>
+            <input type="password" x-model="passwordInput" placeholder="Admin password" autocomplete="current-password">
+            <button type="submit" class="btn btn--primary" :disabled="!passwordInput">Login</button>
+            <p class="auth-gate__error" x-show="authError" x-text="authError"></p>
+          </form>
+        </template>
+      </div>
+    </template>
+
+    <!-- Dashboard -->
+    <template x-if="authenticated">
+      <div class="admin-wrap">
+        <div class="admin-header">
+          <a href="/admin" class="btn btn--ghost admin-header__back">← My rooms</a>
+          <h1>🛠 Admin Dashboard</h1>
+          <p class="admin-header__sub" x-text="'Room: ' + roomId"></p>
+          <p class="admin-header__expiry" x-show="countdown" x-text="countdown"></p>
+          <a :href="'/r/' + roomId + '/board'" target="_blank" rel="noopener" class="btn btn--ghost">📊 Open Board</a>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="scores.length"></div>
+            <div class="stat-card__label">Participants</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="totalMeetings"></div>
+            <div class="stat-card__label">Meetings</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="topScore"></div>
+            <div class="stat-card__label">Top Score</div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'; $nextTick(() => generateRoomQr())">Join</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'leaderboard' }" @click="tab = 'leaderboard'">Leaderboard</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'questions' }" @click="tab = 'questions'; loadQuestions()">Questions</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'settings' }" @click="tab = 'settings'; loadSettings()">Settings</button>
+        </div>
+
+        <!-- Join Tab -->
+        <div x-show="tab === 'join'">
+          <div class="join-tab">
+            <div class="qr-box" id="room-qr"></div>
+            <button class="copy-url-btn" @click="copyUrl()">
+              <span x-text="copied ? '✓ Copied!' : '📋 Copy Room URL'"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Leaderboard Tab -->
+        <div x-show="tab === 'leaderboard'">
+          <table class="leaderboard">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Participant</th>
+                <th>Joined</th>
+                <th>Score</th>
+                <th>Network</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(user, i) in scores" :key="user.public_id">
+                <tr>
+                  <td x-text="i + 1"></td>
+                  <td>
+                    <div class="participant">
+                      <span class="participant__emoji" x-text="user.emoji"></span>
+                      <span x-text="user.display_name"></span>
+                    </div>
+                  </td>
+                  <td x-text="formatDate(user.created_at)"></td>
+                  <td x-text="user.score"></td>
+                  <td>
+                    <span x-show="user.network_tag"
+                      class="network-tag"
+                      :style="networkTagStyle(user.network_tag)"
+                      :title="user.network_tag"
+                      x-text="user.network_tag"></span>
+                    <span x-show="!user.network_tag" class="network-tag network-tag--unknown">—</span>
+                  </td>
+                  <td>
+                    <button class="remove-btn" @click="deleteUser(user.public_id, user.display_name)">Remove</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <p class="leaderboard__empty" x-show="scores.length === 0">No participants yet.</p>
+        </div>
+
+        <!-- Graph Tab -->
+        <div x-show="tab === 'graph'">
+          <div class="graph" id="admin-graph"></div>
+        </div>
+
+        <!-- Questions Tab -->
+        <div x-show="tab === 'questions'">
+          <div class="questions-tab">
+            <p class="questions-tab__hint">These questions are shown to participants during a conversation to help break the ice. Defaults apply to all rooms; you can hide them or add your own.</p>
+
+            <div class="questions-tab__add">
+              <input type="text" x-model="newQuestionText" maxlength="200"
+                placeholder="Add a custom question…"
+                @keyup.enter="addQuestion()"
+                class="questions-tab__input">
+              <button class="btn btn--primary" @click="addQuestion()" :disabled="!newQuestionText.trim()">Add</button>
+            </div>
+
+            <ul class="questions-list">
+              <template x-for="q in questions" :key="q.id">
+                <li class="questions-list__item">
+                  <span class="questions-list__text" x-text="q.text"></span>
+                  <button class="remove-btn" @click="deleteQuestion(q)">Remove</button>
+                </li>
+              </template>
+            </ul>
+            <p class="questions-tab__empty" x-show="questions.length === 0">No questions yet.</p>
+          </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div x-show="tab === 'settings'">
+          <div class="settings-form">
+            <h3>Room Name</h3>
+            <div class="settings-form__row">
+              <input type="text" maxlength="40" x-model="settingsName" placeholder="Room name">
+            </div>
+
+            <h3>Registration</h3>
+            <div class="settings-form__row">
+              <label class="settings-toggle">
+                <input type="checkbox" x-model="settingsIsOpen">
+                <span x-text="settingsIsOpen ? 'Open — new participants can join' : 'Closed — no new participants'"></span>
+              </label>
+            </div>
+
+            <h3>Conversation Questions</h3>
+            <div class="settings-form__row">
+              <label class="settings-toggle">
+                <input type="checkbox" x-model="settingsQuestionsEnabled">
+                <span x-text="settingsQuestionsEnabled ? 'Enabled — a question is suggested at the start of each conversation' : 'Disabled — no question suggestions'"></span>
+              </label>
+            </div>
+
+            <h3>Maximum Participants</h3>
+            <p class="settings-form__hint">Maximum number of people allowed to join this room.</p>
+            <div class="settings-form__row">
+              <label for="max-participants-input">Max participants</label>
+              <input id="max-participants-input" type="number" min="1" x-model.number="settingsMaxParticipants">
+              <button class="btn btn--ghost" x-show="!settingsMaxParticipantsIsDefault" @click="resetMaxParticipants()">Reset to default</button>
+            </div>
+            <p class="settings-form__default" x-show="settingsMaxParticipantsIsDefault">Using server default.</p>
+
+            <h3>Encounter Duration</h3>
+            <p class="settings-form__hint">How long each encounter lasts before both parties must scan again to confirm. Maximum 3600 s (1 hour).</p>
+            <div class="settings-form__row">
+              <label for="duration-input">Duration (seconds)</label>
+              <input id="duration-input" type="number" min="1" max="3600" x-model.number="settingsDuration">
+              <button class="btn btn--ghost" x-show="!settingsDurationIsDefault" @click="resetDuration()">Reset to default</button>
+            </div>
+            <p class="settings-form__default" x-show="settingsDurationIsDefault">Using server default.</p>
+
+            <div class="settings-form__actions">
+              <button class="btn btn--primary" @click="saveSettings()" :disabled="!settingsDurationValid || !settingsName.trim()">Save settings</button>
+            </div>
+
+            <hr class="settings-form__divider">
+
+            <h3 class="settings-form__danger-title">Danger Zone</h3>
+            <p class="settings-form__hint">Permanently delete this room and all its data. This cannot be undone.</p>
+            <button class="btn btn--danger" @click="deleteRoom()">Delete this room</button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Toast -->
+    <div class="toast toast--bottom" x-show="toast" x-text="toast" x-transition></div>
+  </div>
+</body>
+</html>

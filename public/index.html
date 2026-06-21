@@ -267,7 +267,13 @@ SOFTWARE.
     <div class="page page--with-nav" x-show="page === 'about'" x-transition:enter="page-enter">
       <div class="about">
         <div class="about__header">
-          <div class="about__logo">🤝</div>
+          <!-- Long-press (~3s) opens the hidden admin console (/admin). -->
+          <div class="about__logo"
+               @pointerdown="startAdminHold()"
+               @pointerup="cancelAdminHold()"
+               @pointerleave="cancelAdminHold()"
+               @pointercancel="cancelAdminHold()"
+               @contextmenu.prevent>🤝</div>
           <h1 class="about__title">QRMeet</h1>
           <p class="about__tagline">Scan people, have conversations, earn points.</p>
         </div>

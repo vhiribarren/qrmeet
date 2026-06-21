@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { storage } from './storage.js'
+import { storage, adminKeychain } from './storage.js'
 
 // Dependencies are loaded from CDN in index.html:
 //   - `qrcode` (qrcode-generator UMD) is exposed as a global
@@ -211,13 +211,10 @@ function qrmeet() {
         return
       }
 
-      // Admin credentials saved → go directly to admin dashboard
-      const adminPassword = storage.get('adminPassword')
-      const savedRoomId = storage.get('roomId')
-      if (adminPassword && savedRoomId) {
-        location.replace(`/r/${savedRoomId}/admin`)
-        return
-      }
+      // Note: admin credentials no longer hijack the root page. They live in the
+      // independent admin keychain (storage.js) and are reached via the hidden
+      // long-press on the About logo, the manifest shortcut, or the /admin URL —
+      // so a player who also administers rooms is never bounced out of the game.
 
       // Check localStorage for existing session
       const saved = this.loadSaved()
@@ -279,8 +276,7 @@ function qrmeet() {
           body: JSON.stringify({ name: this.createName || 'QRMeet', adminPassword: passwordHash }),
         })
         if (!ok) throw new Error(data.error)
-        storage.set('adminPassword', passwordHash)
-        storage.set('roomId', data.id)
+        adminKeychain.set(data.id, this.createName || 'QRMeet', passwordHash)
         window.location.href = `/r/${data.id}/admin`
       } catch (e) {
         this.showToast(e.message)
@@ -832,6 +828,23 @@ function qrmeet() {
     dismissInstallBanner() {
       this.showInstallBanner = false
       storage.set('installBannerDismissed', true)
+    },
+
+    // ── Hidden admin entry ──
+    // A long press on the About logo opens the admin console. This is purely a
+    // UI affordance to keep the organiser's entry point out of the players' way
+    // (and reachable inside an installed PWA, which has no URL bar). It is NOT a
+    // security control — the admin password remains the only real gate.
+    startAdminHold() {
+      clearTimeout(this._adminHold)
+      this._adminHold = setTimeout(() => {
+        if (navigator.vibrate) navigator.vibrate(30)
+        window.location.href = '/admin'
+      }, 3000)
+    },
+
+    cancelAdminHold() {
+      clearTimeout(this._adminHold)
     },
   }
 }

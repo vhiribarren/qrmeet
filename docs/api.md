@@ -21,10 +21,11 @@ HTML pages served by the worker. All paths below return the corresponding HTML f
 | Path | File | Description |
 |---|---|---|
 | `/` | `index.html` | Landing page — create or join a room |
+| `/admin` | `admin.html` | Admin console — device-local launcher for the rooms the organiser administers (see [Admin keychain](architecture.md#admin-keychain)). Reached via a hidden long-press on the About logo, the PWA manifest shortcut, or directly by URL. |
 | `/r/:roomId` | `index.html` | Auto-joins the room, shows card view |
 | `/r/:roomId/scan/:publicId?t=<token>` | `index.html` | QR scan landing — processes scan then redirects to card |
 | `/r/:roomId/board` | `board.html` | Public leaderboard & graph (no auth) |
-| `/r/:roomId/admin` | `admin.html` | Admin dashboard (password-protected) |
+| `/r/:roomId/admin` | `admin-room.html` | Admin dashboard for one room (password-protected) |
 
 ---
 

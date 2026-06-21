@@ -33,6 +33,29 @@ graph TD
 
 ---
 
+## Admin access — multi-room
+
+The admin role is decoupled from the player session. A device keeps an **admin keychain** (`adminKeychain` in `storage.js`) listing every room it administers, independent of the single player session. So the same phone can play in one room *and* manage several rooms without either overwriting the other.
+
+Entry points to the `/admin` console (the keychain launcher):
+- **Hidden long-press (~3s) on the About logo** — the primary entry inside an installed PWA, which has no URL bar. Purely a UI affordance to keep it out of players' way; it is **not** a security control (the admin password is the only real gate).
+- **PWA manifest shortcut** ("My rooms") — long-press the app icon.
+- **Direct URL** `/admin` — for a regular browser.
+
+```mermaid
+graph TD
+    OPEN[Open /admin console] --> LIST{Rooms in keychain?}
+    LIST -- Yes --> PICK[Pick a room] --> PANEL[/r/:roomId/admin dashboard]
+    LIST -- No --> CHOICE{Create or add?}
+    CHOICE -- Create --> CREATE[POST /api/rooms] --> STORE1[Add to keychain] --> PANEL
+    CHOICE -- Add existing --> AUTH[Verify code + password] --> STORE2[Add to keychain] --> LIST
+    PANEL --> BACK[Back to My rooms] --> OPEN
+```
+
+The "Add an existing room" path is what makes a desktop-created room reachable from a phone: the organiser enters the room code and password, the console authenticates against `GET /api/admin/rooms/:id/scores`, and on success stores the hashed credential in the device keychain.
+
+---
+
 ## Client-side app states
 
 ```mermaid

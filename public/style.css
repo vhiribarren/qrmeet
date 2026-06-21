@@ -367,6 +367,28 @@ emoji-picker {
   background-clip: text;
 }
 .admin-header__sub { color: var(--text-muted); font-size: 14px; }
+.admin-header__back { display: inline-block; width: auto; margin-bottom: 12px; }
+
+/* ── Admin console (/admin) ── */
+.room-list { list-style: none; padding: 0; margin: 0 0 20px; display: flex; flex-direction: column; gap: 10px; }
+.room-list__item {
+  display: flex; align-items: stretch; gap: 8px;
+  background: var(--surface); border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+  overflow: hidden;
+}
+.room-list__open {
+  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 14px 16px; background: none; border: none; cursor: pointer; text-align: left;
+}
+.room-list__name { font-size: 16px; font-weight: 700; color: var(--text); }
+.room-list__code { font-size: 12px; color: var(--text-muted); }
+.room-list__forget {
+  flex: 0 0 auto; width: 44px; background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 16px;
+}
+.room-list__forget:hover { color: var(--danger); }
+.room-actions { display: flex; flex-direction: column; gap: 10px; }
 
 .board-wrap { padding: 24px 20px; }
 .board-header { text-align: center; margin-bottom: 24px; }
