@@ -141,9 +141,10 @@ The core game action. Called when a participant scans someone else's QR code.
 The client first checks that the scanned QR belongs to the same room. If not, it shows "This person is in a different room" without making any API call.
 
 The server:
-1. Verifies the scanner's identity via `privateToken`.
-2. Verifies the QR token against KV (the token is **not burned** if the scan would be rejected).
-3. Checks whether an open encounter already exists between the pair:
+1. Rejects with `403` if the organizer has paused the game (`scanningEnabled: false`) — no encounter is started or confirmed. The client shows the returned message on the scan page.
+2. Verifies the scanner's identity via `privateToken`.
+3. Verifies the QR token against KV (the token is **not burned** if the scan would be rejected).
+4. Checks whether an open encounter already exists between the pair:
    - **No encounter** → checks the busy guard below, then burns token, creates encounter row, picks two random questions from the room's pool (one per participant), notifies `DurableRoom`, returns `started`. If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
    - **Open encounter, `notified_at` not set** → session still in progress, returns `409`.
    - **Open encounter, `notified_at` set** → burns token, marks encounter as `counted = 1`, notifies `DurableRoom`, returns `confirmed`.
@@ -243,6 +244,7 @@ Fetch current room settings.
 {
   "name": "Team Building 2026",
   "isOpen": true,
+  "scanningEnabled": true,
   "questionsEnabled": true,
   "encounterDurationSeconds": 300,
   "encounterDurationIsDefault": true,
@@ -261,6 +263,7 @@ Update room settings. All fields are optional; only provided fields are updated.
 {
   "name": "Team Building 2026",
   "isOpen": true,
+  "scanningEnabled": true,
   "questionsEnabled": false,
   "encounterDurationSeconds": 120,
   "maxParticipants": 50

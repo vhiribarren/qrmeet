@@ -33,6 +33,7 @@ import { Env } from './types'
  */
 export interface RoomSettings {
   isOpen: boolean
+  scanningEnabled: boolean                  // false = game paused, all scans blocked
   questionsEnabled: boolean
   encounterDurationSeconds: number | null  // null = use server default
   maxParticipants: number | null           // null = use server default
@@ -43,6 +44,7 @@ export function parseSettings(raw: string | null | undefined): RoomSettings {
   try { s = JSON.parse(raw || '{}') } catch {}
   return {
     isOpen:                   s.isOpen                   ?? true,
+    scanningEnabled:          s.scanningEnabled          ?? true,
     questionsEnabled:         s.questionsEnabled         ?? true,
     encounterDurationSeconds: s.encounterDurationSeconds ?? null,
     maxParticipants:          s.maxParticipants          ?? null,
@@ -52,6 +54,7 @@ export function parseSettings(raw: string | null | undefined): RoomSettings {
 export function resolveSettings(settings: RoomSettings, env: Env) {
   return {
     isOpen:                   settings.isOpen,
+    scanningEnabled:          settings.scanningEnabled,
     questionsEnabled:         settings.questionsEnabled,
     encounterDurationSeconds: settings.encounterDurationSeconds
                                 ?? parseInt(env.ENCOUNTER_DURATION_SECONDS || '300'),

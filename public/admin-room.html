@@ -187,6 +187,15 @@ SOFTWARE.
               <input type="text" maxlength="40" x-model="settingsName" placeholder="Room name">
             </div>
 
+            <h3>Game</h3>
+            <p class="settings-form__hint">Pause the game to instantly block all scanning. Participants who try to scan see a clear message until you resume.</p>
+            <div class="settings-form__row">
+              <label class="settings-toggle">
+                <input type="checkbox" x-model="settingsScanningEnabled" @change="saveScanningEnabled()">
+                <span x-text="settingsScanningEnabled ? 'Running — participants can scan and meet' : '⏸ Paused — all scanning is blocked'"></span>
+              </label>
+            </div>
+
             <h3>Registration</h3>
             <div class="settings-form__row">
               <label class="settings-toggle">

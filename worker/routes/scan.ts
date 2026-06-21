@@ -50,6 +50,16 @@ scan.post('/', async (c) => {
     return c.json({ error: 'scanneePublicId and qrToken required' }, 400)
   }
 
+  // Game switch: when the organizer pauses the game, no scan can proceed —
+  // neither starting a new encounter nor confirming an existing one.
+  const room = await c.env.DB.prepare(
+    'SELECT settings FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ settings: string }>()
+  const settings = parseSettings(room?.settings)
+  if (!settings.scanningEnabled) {
+    return c.json({ error: 'The organizer has paused the game — scanning is disabled for now. Please wait until it resumes.' }, 403)
+  }
+
   // Verify scanner
   const scanner = await c.env.DB.prepare(
     'SELECT * FROM users WHERE private_token = ? AND room_id = ?'
@@ -131,10 +141,6 @@ scan.post('/', async (c) => {
   await c.env.QR_TOKENS.delete(kvKey)
   const encId = newEncounterId()
   const now = Math.floor(Date.now() / 1000)
-  const room = await c.env.DB.prepare(
-    'SELECT settings FROM rooms WHERE id = ?'
-  ).bind(roomId).first<{ settings: string }>()
-  const settings = parseSettings(room?.settings)
   const resolved = resolveSettings(settings, c.env)
   const duration = resolved.encounterDurationSeconds
 

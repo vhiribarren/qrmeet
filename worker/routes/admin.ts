@@ -111,6 +111,7 @@ admin.get('/rooms/:roomId/settings', async (c) => {
   return c.json({
     name: room.name,
     isOpen:                      settings.isOpen,
+    scanningEnabled:             settings.scanningEnabled,
     questionsEnabled:            settings.questionsEnabled,
     encounterDurationSeconds:    resolved.encounterDurationSeconds,
     encounterDurationIsDefault:  settings.encounterDurationSeconds === null,
@@ -132,6 +133,7 @@ admin.put('/rooms/:roomId/settings', async (c) => {
   const body = await c.req.json<{
     name?: string
     isOpen?: boolean
+    scanningEnabled?: boolean
     questionsEnabled?: boolean
     encounterDurationSeconds?: number | null
     maxParticipants?: number | null
@@ -167,6 +169,7 @@ admin.put('/rooms/:roomId/settings', async (c) => {
   const current = parseSettings(existing.settings)
   const updated: RoomSettings = {
     isOpen:                   body.isOpen                   ?? current.isOpen,
+    scanningEnabled:          body.scanningEnabled          ?? current.scanningEnabled,
     questionsEnabled:         body.questionsEnabled         ?? current.questionsEnabled,
     encounterDurationSeconds: body.encounterDurationSeconds !== undefined
                                 ? body.encounterDurationSeconds

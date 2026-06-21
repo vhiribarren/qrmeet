@@ -61,6 +61,7 @@ function adminApp() {
     _countdownTimer: null,
     settingsName: '',
     settingsIsOpen: true,
+    settingsScanningEnabled: true,
     settingsQuestionsEnabled: true,
     settingsMaxParticipants: 100,
     settingsMaxParticipantsIsDefault: true,
@@ -227,6 +228,7 @@ function adminApp() {
       // Keep the keychain label in sync with the room's real name.
       if (data.name) adminKeychain.set(this.roomId, data.name, this.token)
       this.settingsIsOpen = data.isOpen
+      this.settingsScanningEnabled = data.scanningEnabled
       this.settingsQuestionsEnabled = data.questionsEnabled
       this.settingsMaxParticipants = data.maxParticipants
       this.settingsMaxParticipantsIsDefault = data.maxParticipantsIsDefault
@@ -241,6 +243,7 @@ function adminApp() {
         body: JSON.stringify({
           name: this.settingsName.trim(),
           isOpen: this.settingsIsOpen,
+          scanningEnabled: this.settingsScanningEnabled,
           questionsEnabled: this.settingsQuestionsEnabled,
           maxParticipants: this.settingsMaxParticipants,
           encounterDurationSeconds: this.settingsDuration,
@@ -252,6 +255,22 @@ function adminApp() {
       } else {
         const err = await res.json().catch(() => ({}))
         this.showToast(err.error || 'Failed to save settings')
+      }
+    },
+
+    // Pausing/resuming the game is an emergency switch — apply it immediately
+    // rather than waiting for the "Save settings" button.
+    async saveScanningEnabled() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/settings`, {
+        method: 'PUT',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scanningEnabled: this.settingsScanningEnabled }),
+      })
+      if (res.ok) {
+        this.showToast(this.settingsScanningEnabled ? 'Game resumed — scanning enabled' : 'Game paused — scanning blocked')
+      } else {
+        this.settingsScanningEnabled = !this.settingsScanningEnabled
+        this.showToast('Failed to update game status')
       }
     },
 
