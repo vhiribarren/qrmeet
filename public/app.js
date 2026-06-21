@@ -757,9 +757,14 @@ function qrmeet() {
           this.treasureAward = { points: data.points || 0, label: data.label || '' }
           this.scanState = 'treasure'
           if (navigator.vibrate) navigator.vibrate([10, 60, 20])
-          await this.loadScore()
         }
         history.replaceState({}, '', `/r/${this.roomId}`)
+        // The player has now entered the room (possibly via a fresh auto-join from
+        // the treasure link). Prepare the card just like enterRoom()/doScan() do, so
+        // "Back to my card" shows a working personal QR without a manual refresh.
+        await this.loadScore()
+        await this.refreshQrToken()
+        this.connectWs()
       } catch (e) {
         this.scanState = 'error'
         this.scanError = 'Network error. Please try again.'
