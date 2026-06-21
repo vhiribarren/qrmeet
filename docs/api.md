@@ -320,18 +320,12 @@ Pass `null` for `encounterDurationSeconds` or `maxParticipants` to reset to the 
 
 ---
 
-### `POST /api/admin/rooms/:roomId/extend`
-Push back the room's auto-deletion time. New expiry is `max(current expiry, now) + days`, so extending never shortens the window.
-
-**Body** (optional)
-```json
-{ "days": 7 }
-```
-`days` defaults to `ROOM_TTL_DAYS` (server env, default 7) and must be an integer between 1 and 365.
+### `POST /api/admin/rooms/:roomId/renew`
+Reset the room's auto-deletion to a fresh full window: `now + ROOM_TTL_DAYS`. `ROOM_TTL_DAYS` (server env, default 7) is therefore both the lifetime and the effective ceiling — renewing never pushes the expiry beyond it, and never shortens an already-longer window. No body.
 
 **Response `200`**
 ```json
-{ "expiresAt": 1234567890 }
+{ "expiresAt": 1234567890, "roomTtlDays": 7 }
 ```
 
 ---

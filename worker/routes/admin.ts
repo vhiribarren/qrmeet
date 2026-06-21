@@ -202,36 +202,32 @@ admin.put('/rooms/:roomId/settings', async (c) => {
   return c.json({ ok: true })
 })
 
-// POST /api/admin/rooms/:roomId/extend
-// Push back the room's auto-deletion. Body: { days?: number } (default ROOM_TTL_DAYS).
-// New expiry = max(current expiry, now) + days, so extending never shortens the window.
-admin.post('/rooms/:roomId/extend', async (c) => {
+// POST /api/admin/rooms/:roomId/renew
+// Reset the room's auto-deletion to now + ROOM_TTL_DAYS — a fresh full window.
+// ROOM_TTL_DAYS is therefore both the lifetime and the effective ceiling: renewing
+// never pushes the expiry beyond it (and never shortens an already-longer window).
+admin.post('/rooms/:roomId/renew', async (c) => {
   if (!await verifyAdmin(c)) {
     console.warn('admin.unauthorized', { room: c.req.param('roomId'), endpoint: c.req.path })
     return c.json({ error: 'Unauthorized' }, 401)
   }
   const roomId = c.req.param('roomId')
-  const body = await c.req.json<{ days?: number }>().catch(() => ({} as { days?: number }))
-
-  const defaultDays = parseInt(c.env.ROOM_TTL_DAYS || '7')
-  const days = body.days ?? defaultDays
-  if (!Number.isInteger(days) || days < 1 || days > 365) {
-    return c.json({ error: 'days must be an integer between 1 and 365' }, 400)
-  }
 
   const room = await c.env.DB.prepare(
     'SELECT expires_at FROM rooms WHERE id = ?'
   ).bind(roomId).first<{ expires_at: number }>()
   if (!room) return c.json({ error: 'Room not found' }, 404)
 
+  const ttlDays = parseInt(c.env.ROOM_TTL_DAYS || '7')
   const now = Math.floor(Date.now() / 1000)
-  const newExpiry = Math.max(room.expires_at, now) + days * 86400
+  const newExpiry = Math.max(room.expires_at, now + ttlDays * 86400)
+
   await c.env.DB.prepare(
     'UPDATE rooms SET expires_at = ? WHERE id = ?'
   ).bind(newExpiry, roomId).run()
 
-  console.info('admin.room.extended', { room: roomId, days, expiresAt: newExpiry })
-  return c.json({ expiresAt: newExpiry })
+  console.info('admin.room.renewed', { room: roomId, expiresAt: newExpiry })
+  return c.json({ expiresAt: newExpiry, roomTtlDays: ttlDays })
 })
 
 // DELETE /api/admin/rooms/:roomId

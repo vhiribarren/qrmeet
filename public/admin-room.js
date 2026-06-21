@@ -254,8 +254,9 @@ function adminApp() {
       this.roomTtlDays = data.roomTtlDays ?? this.roomTtlDays
     },
 
-    async extendRoom() {
-      const res = await fetch(`/api/admin/rooms/${this.roomId}/extend`, {
+    async renewRoom() {
+      if (!confirm(`Renew this room?\n\nThis resets the auto-deletion countdown to ${this.roomTtlDays} days from now.`)) return
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/renew`, {
         method: 'POST',
         headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -263,10 +264,11 @@ function adminApp() {
       if (res.ok) {
         const data = await res.json()
         this.expiresAt = data.expiresAt
+        this.roomTtlDays = data.roomTtlDays ?? this.roomTtlDays
         this.startCountdown()
-        this.showToast(`Extended by ${this.roomTtlDays} days`)
+        this.showToast(`Renewed for ${this.roomTtlDays} days`)
       } else {
-        this.showToast('Failed to extend room')
+        this.showToast('Failed to renew room')
       }
     },
 
