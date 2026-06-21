@@ -603,3 +603,55 @@ emoji-picker {
   .btn--primary { box-shadow: 0 4px 14px rgba(99,102,241,0.4); }
   .btn--primary:hover { box-shadow: 0 6px 20px rgba(99,102,241,0.55); }
 }
+
+/* ── Score breakdown (player) ── */
+.score__breakdown {
+  display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;
+  margin-top: 8px; font-size: 14px; color: var(--text-muted);
+}
+
+/* ── Treasure hunt (admin) ── */
+.treasure-tab { display: flex; flex-direction: column; gap: 12px; }
+.treasure-tab__hint { color: var(--text-muted); font-size: 14px; margin: 0; }
+.treasure-tab__add { display: flex; gap: 8px; align-items: center; }
+.treasure-tab__add .btn { flex-shrink: 0; white-space: nowrap; padding: 0 16px; min-height: 40px; font-size: 14px; width: auto; }
+.treasure-tab__input { flex: 1; min-width: 0; width: auto; font-size: 14px; padding: 10px 14px; }
+.treasure-tab__points { width: 96px; flex-shrink: 0; font-size: 14px; padding: 10px 12px; }
+.treasure-tab__actions { display: flex; justify-content: flex-end; }
+.treasure-tab__actions .btn { width: auto; }
+.treasure-tab__empty { text-align: center; color: var(--text-muted); padding: 40px; }
+
+.treasure-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.treasure-list__item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.treasure-list__item--disabled { opacity: 0.6; }
+.treasure-list__main { display: flex; gap: 8px; align-items: center; }
+.treasure-list__label { flex: 1; min-width: 0; font-size: 14px; padding: 8px 12px; }
+.treasure-list__points { width: 80px; flex-shrink: 0; font-size: 14px; padding: 8px 10px; }
+.treasure-list__meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
+.treasure-list__row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.treasure-list__row .btn { width: auto; }
+.settings-toggle--sm { font-size: 13px; }
+.btn--sm { width: auto; padding: 4px 12px; min-height: 32px; font-size: 13px; }
+
+/* ── Treasure print area: hidden on screen, only shown when printing ── */
+.treasure-print { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  .treasure-print, .treasure-print * { visibility: visible; }
+  .treasure-print {
+    display: flex; flex-wrap: wrap; gap: 16px;
+    position: absolute; inset: 0; padding: 16px;
+  }
+  .treasure-card {
+    width: 220px; box-sizing: border-box;
+    border: 1px dashed #999; border-radius: 8px;
+    padding: 12px; text-align: center; page-break-inside: avoid;
+  }
+  .treasure-card img { width: 180px; height: 180px; }
+  .treasure-card__label { font-weight: 700; font-size: 15px; margin-top: 6px; }
+  .treasure-card__meta { font-size: 11px; color: #555; margin-top: 4px; word-break: break-all; }
+}

@@ -37,6 +37,8 @@ export interface RoomSettings {
   questionsEnabled: boolean
   encounterDurationSeconds: number | null  // null = use server default
   maxParticipants: number | null           // null = use server default
+  treasureHuntEnabled: boolean             // treasure hunt mode on/off
+  treasureDefaultPoints: number            // points for treasures with no override
 }
 
 export function parseSettings(raw: string | null | undefined): RoomSettings {
@@ -48,6 +50,8 @@ export function parseSettings(raw: string | null | undefined): RoomSettings {
     questionsEnabled:         s.questionsEnabled         ?? true,
     encounterDurationSeconds: s.encounterDurationSeconds ?? null,
     maxParticipants:          s.maxParticipants          ?? null,
+    treasureHuntEnabled:      s.treasureHuntEnabled      ?? false,
+    treasureDefaultPoints:    s.treasureDefaultPoints    ?? 3,
   }
 }
 
@@ -60,5 +64,7 @@ export function resolveSettings(settings: RoomSettings, env: Env) {
                                 ?? parseInt(env.ENCOUNTER_DURATION_SECONDS || '300'),
     maxParticipants:          settings.maxParticipants
                                 ?? parseInt(env.MAX_PARTICIPANTS || '100'),
+    treasureHuntEnabled:      settings.treasureHuntEnabled,
+    treasureDefaultPoints:    settings.treasureDefaultPoints,
   }
 }

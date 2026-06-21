@@ -120,6 +120,7 @@ function qrmeet() {
     scannerOpen: false,
     scannerStream: null,
     cameraBlocked: false,
+    treasureAward: { points: 0, label: '' }, // last treasure claimed
 
     // PWA Install
     installPromptEvent: null,
@@ -188,6 +189,31 @@ function qrmeet() {
         this.scanState = 'scanning'
         await this.ensureUser()
         await this.doScan(scanneePublicId, qrToken)
+        return
+      }
+
+      // Handle treasure URL: /r/:roomId/treasure/:treasureId
+      const treasureMatch = path.match(/^\/r\/([^/]+)\/treasure\/([^/]+)$/)
+      if (treasureMatch) {
+        const [, roomId, treasureId] = treasureMatch
+
+        const saved = this.loadSaved()
+        if (saved?.roomId && saved.roomId !== roomId) {
+          if (confirm(`You are currently in room "${saved.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
+            this.performSwitchRoom()
+          } else {
+            this.me = saved.me
+            this.roomId = saved.roomId
+            await this.enterRoom()
+            return
+          }
+        }
+
+        this.roomId = roomId
+        this.page = 'scan'
+        this.scanState = 'scanning'
+        await this.ensureUser()
+        await this.claimTreasure(treasureId)
         return
       }
 
@@ -602,6 +628,33 @@ function qrmeet() {
           return
         }
 
+        // Treasure QR: /r/{roomId}/treasure/{treasureId}
+        const treasureMatch = parsed.pathname.match(/^\/r\/([^/]+)\/treasure\/([^/]+)$/)
+        if (treasureMatch) {
+          const [, roomId, treasureId] = treasureMatch
+
+          if (this.roomId && roomId !== this.roomId) {
+            if (confirm(`You are currently in room "${this.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
+              this.performSwitchRoom()
+            } else {
+              return
+            }
+          }
+
+          this.roomId = roomId
+          this.page = 'scan'
+          this.scanState = 'scanning'
+          try {
+            await this.ensureUser()
+          } catch (e) {
+            this.scanState = 'error'
+            this.scanError = e.message || 'Could not join room'
+            return
+          }
+          this.claimTreasure(treasureId)
+          return
+        }
+
         this.showToast('Not a valid QRMeet code')
       } catch {
         this.showToast('Not a valid QR code')
@@ -673,6 +726,45 @@ function qrmeet() {
         setTimeout(() => {
           history.replaceState({}, '', `/r/${this.roomId}`)
           this.session = null
+          this.enterRoom()
+        }, 3000)
+      }
+    },
+
+    // ── Treasure hunt ──
+    async claimTreasure(treasureId) {
+      try {
+        const { ok, status, data } = await apiFetch(`/api/rooms/${this.roomId}/treasures/${treasureId}/claim`, {
+          method: 'POST',
+          headers: { 'x-private-token': this.me.privateToken },
+        })
+
+        if (!ok) {
+          this.scanState = 'error'
+          this.scanError = data.error || 'Could not collect this treasure'
+          setTimeout(() => {
+            history.replaceState({}, '', `/r/${this.roomId}`)
+            this.enterRoom()
+          }, 3000)
+          return
+        }
+
+        if (data.action === 'already_claimed') {
+          this.treasureAward = { points: 0, label: data.label || '' }
+          this.scanState = 'treasure_dup'
+          if (navigator.vibrate) navigator.vibrate(8)
+        } else {
+          this.treasureAward = { points: data.points || 0, label: data.label || '' }
+          this.scanState = 'treasure'
+          if (navigator.vibrate) navigator.vibrate([10, 60, 20])
+          await this.loadScore()
+        }
+        history.replaceState({}, '', `/r/${this.roomId}`)
+      } catch (e) {
+        this.scanState = 'error'
+        this.scanError = 'Network error. Please try again.'
+        setTimeout(() => {
+          history.replaceState({}, '', `/r/${this.roomId}`)
           this.enterRoom()
         }, 3000)
       }

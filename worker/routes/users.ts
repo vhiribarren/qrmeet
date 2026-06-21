@@ -194,11 +194,21 @@ users.get('/:uid/score', async (c) => {
   const counted = encounters.results.filter((e: any) => e.counted === 1)
   const pending = encounters.results.filter((e: any) => e.counted === 0)
 
+  // Treasure hunt points contribute to the same unified score.
+  const treasure = await c.env.DB.prepare(
+    'SELECT COUNT(*) as found, COALESCE(SUM(points), 0) as points FROM treasure_scans WHERE user_id = ? AND room_id = ?'
+  ).bind(uid, roomId).first<{ found: number; points: number }>()
+  const treasurePoints = treasure?.points ?? 0
+  const treasuresFound = treasure?.found ?? 0
+
   return c.json({
     publicId: uid,
     displayName: user.display_name,
     emoji: user.emoji,
-    score: counted.length,
+    score: counted.length + treasurePoints,
+    meetings: counted.length,
+    treasurePoints,
+    treasuresFound,
     encounters: encounters.results,
     pendingCount: pending.length,
   })

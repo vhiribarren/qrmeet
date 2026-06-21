@@ -41,6 +41,13 @@ function formatCountdown(expiresAt) {
   return `🗑 Data auto-deletes in ${parts}`
 }
 
+// Minimal HTML escaping for values injected into the print area via innerHTML.
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch]))
+}
+
 function adminApp() {
   return {
     roomId: '',
@@ -67,8 +74,14 @@ function adminApp() {
     settingsMaxParticipantsIsDefault: true,
     settingsDuration: 300,
     settingsDurationIsDefault: true,
+    settingsTreasureHuntEnabled: false,
+    settingsTreasureDefaultPoints: 3,
     questions: [],
     newQuestionText: '',
+    treasures: [],
+    treasureDefaultPoints: 3,
+    newTreasureLabel: '',
+    newTreasurePoints: '',   // '' = inherit room default
 
     async init() {
       const match = window.location.pathname.match(/\/r\/([^/]+)\/admin/)
@@ -135,9 +148,10 @@ function adminApp() {
       const data = await res.json()
       this.scores = data.scores || []
       this.expiresAt = data.expiresAt || 0
-      this.topScore = this.scores.length > 0 ? this.scores[0].score : 0
-      this.totalMeetings = this.scores.reduce((sum, u) => sum + (u.score || 0), 0) / 2
-      this.totalMeetings = Math.floor(this.totalMeetings)
+      this.topScore = this.scores.reduce((max, u) => Math.max(max, u.score || 0), 0)
+      // Each counted encounter links two participants, so total meetings = sum/2.
+      // Use the encounter-only `meetings` field so treasure points don't inflate it.
+      this.totalMeetings = Math.floor(this.scores.reduce((sum, u) => sum + (u.meetings || 0), 0) / 2)
     },
 
     async loadGraph() {
@@ -234,6 +248,8 @@ function adminApp() {
       this.settingsMaxParticipantsIsDefault = data.maxParticipantsIsDefault
       this.settingsDuration = data.encounterDurationSeconds
       this.settingsDurationIsDefault = data.encounterDurationIsDefault
+      this.settingsTreasureHuntEnabled = data.treasureHuntEnabled
+      this.settingsTreasureDefaultPoints = data.treasureDefaultPoints
     },
 
     async saveSettings() {
@@ -247,6 +263,8 @@ function adminApp() {
           questionsEnabled: this.settingsQuestionsEnabled,
           maxParticipants: this.settingsMaxParticipants,
           encounterDurationSeconds: this.settingsDuration,
+          treasureHuntEnabled: this.settingsTreasureHuntEnabled,
+          treasureDefaultPoints: this.settingsTreasureDefaultPoints,
         }),
       })
       if (res.ok) {
@@ -388,6 +406,114 @@ function adminApp() {
       } else {
         this.showToast('Failed to remove question')
       }
+    },
+
+    // ── Treasure hunt ──
+    async loadTreasures() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/treasures`, {
+        headers: { 'x-admin-token': this.token }
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      this.treasures = data.treasures || []
+      this.treasureDefaultPoints = data.defaultPoints ?? 3
+    },
+
+    async addTreasure() {
+      const label = this.newTreasureLabel.trim()
+      const points = this.newTreasurePoints === '' || this.newTreasurePoints === null
+        ? null
+        : Number(this.newTreasurePoints)
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/treasures`, {
+        method: 'POST',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, points }),
+      })
+      if (res.ok) {
+        this.newTreasureLabel = ''
+        this.newTreasurePoints = ''
+        await this.loadTreasures()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        this.showToast(err.error || 'Failed to add treasure')
+      }
+    },
+
+    async saveTreasure(t) {
+      const points = t.points === '' || t.points === null || t.points === undefined
+        ? null
+        : Number(t.points)
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/treasures/${t.id}`, {
+        method: 'PUT',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: (t.label || '').trim(), points }),
+      })
+      if (res.ok) {
+        await this.loadTreasures()
+        this.showToast('Treasure saved')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        this.showToast(err.error || 'Failed to save treasure')
+      }
+    },
+
+    async toggleTreasure(t) {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/treasures/${t.id}`, {
+        method: 'PUT',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: t.enabled !== 1 }),
+      })
+      if (res.ok) {
+        await this.loadTreasures()
+      } else {
+        this.showToast('Failed to update treasure')
+      }
+    },
+
+    async deleteTreasure(t) {
+      if (!confirm(`Delete treasure "${t.label || t.id}"? Players who already scanned it keep their points.`)) return
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/treasures/${t.id}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-token': this.token },
+      })
+      if (res.ok) {
+        await this.loadTreasures()
+      } else {
+        this.showToast('Failed to delete treasure')
+      }
+    },
+
+    treasureUrl(t) {
+      return `${window.location.origin}/r/${this.roomId}/treasure/${t.id}`
+    },
+
+    // Render the chosen treasures into the hidden print area, then open the
+    // browser print dialog. The @media print CSS shows only that area.
+    printTreasures(list) {
+      const container = document.getElementById('treasure-print')
+      if (!container) return
+      const roomName = (this.settingsName || '').trim()
+      container.innerHTML = list.map((t) => {
+        const qr = qrcode(0, 'M')
+        qr.addData(this.treasureUrl(t))
+        qr.make()
+        const points = (t.points ?? this.treasureDefaultPoints)
+        return `
+          <div class="treasure-card">
+            ${qr.createImgTag(6, 1)}
+            <div class="treasure-card__label">${escapeHtml(t.label || 'Treasure')}</div>
+            <div class="treasure-card__meta">
+              ${roomName ? escapeHtml(roomName) + ' · ' : ''}room ${escapeHtml(this.roomId)} · #${escapeHtml(t.id)}
+            </div>
+          </div>`
+      }).join('')
+      this.$nextTick(() => window.print())
+    },
+
+    printTreasure(t) { this.printTreasures([t]) },
+    printAllTreasures() {
+      if (this.treasures.length === 0) { this.showToast('No treasures to print'); return }
+      this.printTreasures(this.treasures)
     },
 
     showToast(msg) {

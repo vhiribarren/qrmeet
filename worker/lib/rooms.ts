@@ -6,6 +6,8 @@ export async function purgeRoom(
   roomId: string
 ): Promise<void> {
   await db.batch([
+    db.prepare('DELETE FROM treasure_scans WHERE room_id = ?').bind(roomId),
+    db.prepare('DELETE FROM treasures WHERE room_id = ?').bind(roomId),
     db.prepare('DELETE FROM encounters WHERE room_id = ?').bind(roomId),
     db.prepare('DELETE FROM users WHERE room_id = ?').bind(roomId),
     db.prepare('DELETE FROM rooms WHERE id = ?').bind(roomId),

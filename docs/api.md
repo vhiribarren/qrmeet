@@ -8,6 +8,7 @@ All routes are mounted under `/api/`. Errors always return JSON `{ "error": "...
 - [Rooms](#rooms) — `POST /api/rooms`, `GET /api/rooms/:roomId`
 - [Users](#users) — join, profile, QR token, score
 - [Scan](#scan) — core game action
+- [Treasure](#treasure) — treasure hunt claim
 - [Board](#board-public) — public leaderboard & graph
 - [Admin](#admin) — auth-protected management
 - [WebSocket](#websocket) — real-time events
@@ -24,6 +25,7 @@ HTML pages served by the worker. All paths below return the corresponding HTML f
 | `/admin` | `admin.html` | Admin console — device-local launcher for the rooms the organiser administers (see [Admin keychain](architecture.md#admin-keychain)). Reached via a hidden long-press on the About logo, the PWA manifest shortcut, or directly by URL. |
 | `/r/:roomId` | `index.html` | Auto-joins the room, shows card view |
 | `/r/:roomId/scan/:publicId?t=<token>` | `index.html` | QR scan landing — processes scan then redirects to card |
+| `/r/:roomId/treasure/:treasureId` | `index.html` | Treasure QR landing — claims the treasure then redirects to card |
 | `/r/:roomId/board` | `board.html` | Public leaderboard & graph (no auth) |
 | `/r/:roomId/admin` | `admin-room.html` | Admin dashboard for one room (password-protected) |
 
@@ -107,7 +109,10 @@ Fetch the user's score and encounter history.
   "publicId": "...",
   "displayName": "Alice",
   "emoji": "🦁",
-  "score": 3,
+  "score": 6,
+  "meetings": 3,
+  "treasurePoints": 3,
+  "treasuresFound": 1,
   "pendingCount": 1,
   "encounters": [
     {
@@ -166,6 +171,37 @@ The server:
 **Response `200` — meeting confirmed**
 ```json
 { "action": "confirmed", "encounterId": "..." }
+```
+
+> `score` everywhere in the API is **unified**: confirmed encounters (1 point each) **plus** treasure points. The `meetings` field, where present, is the encounter-only count.
+
+---
+
+## Treasure
+
+Treasure hunt mode: special static QR codes (`/r/:roomId/treasure/:treasureId`) that anyone can scan once to instantly earn points, with **no conversation started**. The mode is toggled per room (`treasureHuntEnabled`); admins manage the codes via the [Admin](#admin) endpoints below.
+
+### `POST /api/rooms/:roomId/treasures/:treasureId/claim`
+Claim a treasure. No body — the `:treasureId` path segment (a 12-char unguessable id) is the capability. The scanner is auto-created beforehand by the client (`POST /users`), so a brand-new visitor can claim immediately.
+
+**Header** `x-private-token: <scanner's privateToken>`
+
+The server:
+1. Verifies the scanner's identity via `privateToken`.
+2. Rejects with `403` if the organizer has paused the game (`scanningEnabled: false`) — the pause freezes treasure claims too.
+3. Rejects with `403` if `treasureHuntEnabled` is off for the room.
+4. Rejects with `404`/`403` if the treasure is missing or disabled.
+4. Awards `treasure.points ?? room.treasureDefaultPoints`, snapshotted into `treasure_scans`.
+5. `UNIQUE(treasure_id, user_id)` guarantees one claim per player; a repeat returns `already_claimed`.
+
+**Response `200` — claimed**
+```json
+{ "action": "claimed", "points": 3, "label": "Near the coffee machine" }
+```
+
+**Response `200` — already claimed**
+```json
+{ "action": "already_claimed", "label": "Near the coffee machine" }
 ```
 
 ---
@@ -249,7 +285,9 @@ Fetch current room settings.
   "encounterDurationSeconds": 300,
   "encounterDurationIsDefault": true,
   "maxParticipants": 100,
-  "maxParticipantsIsDefault": true
+  "maxParticipantsIsDefault": true,
+  "treasureHuntEnabled": false,
+  "treasureDefaultPoints": 3
 }
 ```
 
@@ -266,11 +304,13 @@ Update room settings. All fields are optional; only provided fields are updated.
   "scanningEnabled": true,
   "questionsEnabled": false,
   "encounterDurationSeconds": 120,
-  "maxParticipants": 50
+  "maxParticipants": 50,
+  "treasureHuntEnabled": true,
+  "treasureDefaultPoints": 3
 }
 ```
 
-Pass `null` for `encounterDurationSeconds` or `maxParticipants` to reset to the server default.
+Pass `null` for `encounterDurationSeconds` or `maxParticipants` to reset to the server default. `treasureDefaultPoints` must be an integer ≥ 1 and is the points awarded for any treasure that has no per-QR override.
 
 **Response `200`**
 ```json
@@ -330,6 +370,60 @@ Add a question to the room's pool.
 
 ### `DELETE /api/admin/rooms/:roomId/questions/:qid`
 Remove a question from the room's pool.
+
+**Response `200`**
+```json
+{ "ok": true }
+```
+
+---
+
+### `GET /api/admin/rooms/:roomId/treasures`
+List the room's treasures with their scan counts. `effectivePoints` is `points ?? defaultPoints`.
+
+**Response `200`**
+```json
+{
+  "defaultPoints": 3,
+  "treasures": [
+    { "id": "abc123def456", "label": "Near the coffee machine", "points": null, "effectivePoints": 3, "enabled": 1, "scans": 5, "created_at": 0 },
+    { "id": "xyz789abc012", "label": "Rare one", "points": 10, "effectivePoints": 10, "enabled": 0, "scans": 0, "created_at": 0 }
+  ]
+}
+```
+
+---
+
+### `POST /api/admin/rooms/:roomId/treasures`
+Create a treasure. `points` omitted or `null` means inherit the room default; a number (integer ≥ 1) sets a per-QR override.
+
+**Body**
+```json
+{ "label": "Near the coffee machine", "points": null }
+```
+**Response `201`**
+```json
+{ "id": "abc123def456", "label": "Near the coffee machine", "points": null, "enabled": 1, "created_at": 0 }
+```
+
+---
+
+### `PUT /api/admin/rooms/:roomId/treasures/:tid`
+Update a treasure. All fields optional. `points: null` clears the override back to inherit; `enabled` toggles availability.
+
+**Body**
+```json
+{ "label": "Moved to the lobby", "points": 5, "enabled": true }
+```
+**Response `200`**
+```json
+{ "id": "abc123def456", "label": "Moved to the lobby", "points": 5, "enabled": 1 }
+```
+
+---
+
+### `DELETE /api/admin/rooms/:roomId/treasures/:tid`
+Delete a treasure and its scan records. Points already counted in players' scores were snapshotted, but removing the scan rows lowers those players' scores accordingly.
 
 **Response `200`**
 ```json

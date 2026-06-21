@@ -27,6 +27,7 @@ import { Env } from './lib/types'
 import rooms from './routes/rooms'
 import users from './routes/users'
 import scan from './routes/scan'
+import treasures from './routes/treasures'
 import admin from './routes/admin'
 import board from './routes/board'
 import frontend from './routes/frontend'
@@ -72,6 +73,7 @@ app.onError((err, c) => {
 app.route('/api/rooms', rooms)
 app.route('/api/rooms/:roomId/users', users)
 app.route('/api/rooms/:roomId/scan', scan)
+app.route('/api/rooms/:roomId/treasures', treasures)
 app.route('/api/rooms/:roomId/board', board)
 app.route('/api/admin', admin)
 app.route('/r', frontend)

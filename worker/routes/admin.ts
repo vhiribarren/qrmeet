@@ -60,7 +60,9 @@ admin.get('/rooms/:roomId/scores', async (c) => {
       u.emoji,
       u.created_at,
       SUBSTR(u.ip_hash, 1, 8) as network_tag,
-      COUNT(CASE WHEN e.counted = 1 THEN 1 END) as score
+      COUNT(CASE WHEN e.counted = 1 THEN 1 END) as meetings,
+      COUNT(CASE WHEN e.counted = 1 THEN 1 END)
+        + (SELECT COALESCE(SUM(ts.points), 0) FROM treasure_scans ts WHERE ts.user_id = u.public_id) as score
     FROM users u
     LEFT JOIN encounters e
       ON e.room_id = u.room_id
@@ -117,6 +119,8 @@ admin.get('/rooms/:roomId/settings', async (c) => {
     encounterDurationIsDefault:  settings.encounterDurationSeconds === null,
     maxParticipants:             resolved.maxParticipants,
     maxParticipantsIsDefault:    settings.maxParticipants === null,
+    treasureHuntEnabled:         settings.treasureHuntEnabled,
+    treasureDefaultPoints:       settings.treasureDefaultPoints,
     // expose defaults so the UI can show them
     defaultEncounterDurationSeconds: defaultDuration,
     defaultMaxParticipants:          defaultMaxParticipants,
@@ -137,6 +141,8 @@ admin.put('/rooms/:roomId/settings', async (c) => {
     questionsEnabled?: boolean
     encounterDurationSeconds?: number | null
     maxParticipants?: number | null
+    treasureHuntEnabled?: boolean
+    treasureDefaultPoints?: number
   }>()
 
   // Validate name separately — it is a top-level column, not part of settings JSON
@@ -159,6 +165,12 @@ admin.put('/rooms/:roomId/settings', async (c) => {
       return c.json({ error: 'maxParticipants must be an integer >= 1' }, 400)
     }
   }
+  if (body.treasureDefaultPoints !== undefined) {
+    const v = body.treasureDefaultPoints
+    if (!Number.isInteger(v) || v < 1) {
+      return c.json({ error: 'treasureDefaultPoints must be an integer >= 1' }, 400)
+    }
+  }
 
   // Merge incoming fields into the existing settings blob
   const existing = await c.env.DB.prepare(
@@ -177,6 +189,8 @@ admin.put('/rooms/:roomId/settings', async (c) => {
     maxParticipants:          body.maxParticipants !== undefined
                                 ? body.maxParticipants
                                 : current.maxParticipants,
+    treasureHuntEnabled:      body.treasureHuntEnabled   ?? current.treasureHuntEnabled,
+    treasureDefaultPoints:    body.treasureDefaultPoints ?? current.treasureDefaultPoints,
   }
 
   await c.env.DB.prepare(
@@ -210,6 +224,9 @@ admin.delete('/rooms/:roomId/users/:uid', async (c) => {
   await c.env.DB.prepare(
     'DELETE FROM encounters WHERE room_id = ? AND (user_a_id = ? OR user_b_id = ?)'
   ).bind(roomId, uid, uid).run()
+  await c.env.DB.prepare(
+    'DELETE FROM treasure_scans WHERE room_id = ? AND user_id = ?'
+  ).bind(roomId, uid).run()
   await c.env.DB.prepare(
     'DELETE FROM users WHERE public_id = ? AND room_id = ?'
   ).bind(uid, roomId).run()
@@ -261,6 +278,108 @@ admin.delete('/rooms/:roomId/questions/:qid', async (c) => {
   ).bind(qid, roomId).run()
 
   console.info('admin.question.deleted', { room: roomId, id: qid })
+  return c.json({ ok: true })
+})
+
+// ── Treasure hunt management ──
+
+// GET /api/admin/rooms/:roomId/treasures
+admin.get('/rooms/:roomId/treasures', async (c) => {
+  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+
+  const room = await c.env.DB.prepare(
+    'SELECT settings FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ settings: string }>()
+  if (!room) return c.json({ error: 'Room not found' }, 404)
+  const defaultPoints = parseSettings(room.settings).treasureDefaultPoints
+
+  const rows = await c.env.DB.prepare(`
+    SELECT t.id, t.label, t.points, t.enabled, t.created_at,
+           (SELECT COUNT(*) FROM treasure_scans ts WHERE ts.treasure_id = t.id) as scans
+    FROM treasures t
+    WHERE t.room_id = ?
+    ORDER BY t.created_at ASC
+  `).bind(roomId).all<{ id: string; label: string; points: number | null; enabled: number; created_at: number; scans: number }>()
+
+  const treasures = rows.results.map((t) => ({
+    ...t,
+    effectivePoints: t.points ?? defaultPoints,
+  }))
+
+  return c.json({ treasures, defaultPoints })
+})
+
+// POST /api/admin/rooms/:roomId/treasures
+// Body: { label?: string, points?: number | null }  (points null/omitted = inherit default)
+admin.post('/rooms/:roomId/treasures', async (c) => {
+  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+  const body = await c.req.json<{ label?: string; points?: number | null }>()
+
+  const label = (body.label ?? '').trim().slice(0, 80)
+  let points: number | null = null
+  if (body.points !== null && body.points !== undefined) {
+    if (!Number.isInteger(body.points) || body.points < 1) {
+      return c.json({ error: 'points must be an integer >= 1 (or null to inherit the default)' }, 400)
+    }
+    points = body.points
+  }
+
+  const id = newPublicId()
+  const now = Math.floor(Date.now() / 1000)
+  await c.env.DB.prepare(
+    'INSERT INTO treasures (id, room_id, label, points, enabled, created_at) VALUES (?, ?, ?, ?, 1, ?)'
+  ).bind(id, roomId, label, points, now).run()
+
+  console.info('admin.treasure.added', { room: roomId, id })
+  return c.json({ id, label, points, enabled: 1, created_at: now }, 201)
+})
+
+// PUT /api/admin/rooms/:roomId/treasures/:tid
+// Body: { label?: string, points?: number | null, enabled?: boolean }
+admin.put('/rooms/:roomId/treasures/:tid', async (c) => {
+  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+  const tid    = c.req.param('tid')
+  const body = await c.req.json<{ label?: string; points?: number | null; enabled?: boolean }>()
+
+  const existing = await c.env.DB.prepare(
+    'SELECT * FROM treasures WHERE id = ? AND room_id = ?'
+  ).bind(tid, roomId).first<{ label: string; points: number | null; enabled: number }>()
+  if (!existing) return c.json({ error: 'Treasure not found' }, 404)
+
+  let points = existing.points
+  if (body.points !== undefined) {
+    if (body.points === null) {
+      points = null
+    } else if (!Number.isInteger(body.points) || body.points < 1) {
+      return c.json({ error: 'points must be an integer >= 1 (or null to inherit the default)' }, 400)
+    } else {
+      points = body.points
+    }
+  }
+  const label   = body.label !== undefined ? body.label.trim().slice(0, 80) : existing.label
+  const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled
+
+  await c.env.DB.prepare(
+    'UPDATE treasures SET label = ?, points = ?, enabled = ? WHERE id = ? AND room_id = ?'
+  ).bind(label, points, enabled, tid, roomId).run()
+
+  console.info('admin.treasure.updated', { room: roomId, id: tid, updates: Object.keys(body) })
+  return c.json({ id: tid, label, points, enabled })
+})
+
+// DELETE /api/admin/rooms/:roomId/treasures/:tid
+admin.delete('/rooms/:roomId/treasures/:tid', async (c) => {
+  if (!await verifyAdmin(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const roomId = c.req.param('roomId')
+  const tid    = c.req.param('tid')
+
+  await c.env.DB.prepare('DELETE FROM treasure_scans WHERE treasure_id = ? AND room_id = ?').bind(tid, roomId).run()
+  await c.env.DB.prepare('DELETE FROM treasures WHERE id = ? AND room_id = ?').bind(tid, roomId).run()
+
+  console.info('admin.treasure.deleted', { room: roomId, id: tid })
   return c.json({ ok: true })
 })
 

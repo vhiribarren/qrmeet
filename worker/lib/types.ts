@@ -63,6 +63,15 @@ export interface Encounter {
   counted: number
 }
 
+export interface Treasure {
+  id: string
+  room_id: string
+  label: string
+  points: number | null   // null = inherit room treasureDefaultPoints
+  enabled: number
+  created_at: number
+}
+
 export interface WsMessage {
   type: 'session_start' | 'session_end' | 'session_confirmed' | 'token_refresh' | 'error'
   [key: string]: unknown

@@ -143,6 +143,28 @@ stateDiagram-v2
 
 ---
 
+## Treasure claim
+
+Treasure hunt mode is independent of the encounter game. A treasure QR encodes a static URL `/r/:roomId/treasure/:treasureId`. Scanning it (or opening the link) auto-joins the visitor if needed and instantly awards points — **no conversation, timer, or confirmation scan**, and each player can claim a given treasure only once.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Scanned : Open or scan treasure URL
+    Scanned --> Joined : ensureUser (auto POST /users)
+    Joined --> Claimed : POST /treasures/:id/claim succeeds
+    note right of Claimed : treasure_scans row inserted, points snapshotted, board refreshed
+    Joined --> AlreadyClaimed : UNIQUE(treasure_id, user_id) hit
+    note right of AlreadyClaimed : No extra points awarded
+    Joined --> Rejected : Game paused, hunt off, treasure missing or disabled
+    Claimed --> [*]
+    AlreadyClaimed --> [*]
+    Rejected --> [*]
+```
+
+Contrast with the encounter flow above: a treasure claim is a single one-shot award (default 3 points, per-QR overridable) that bypasses the busy-guard, so it works even while a player is mid-conversation. Points feed the same unified leaderboard.
+
+---
+
 ## QR token lifecycle
 
 ```mermaid

@@ -93,6 +93,7 @@ SOFTWARE.
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'leaderboard' }" @click="tab = 'leaderboard'">Leaderboard</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'questions' }" @click="tab = 'questions'; loadQuestions()">Questions</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'treasure' }" @click="tab = 'treasure'; loadTreasures()">Treasure</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'settings' }" @click="tab = 'settings'; loadSettings()">Settings</button>
         </div>
 
@@ -179,6 +180,59 @@ SOFTWARE.
           </div>
         </div>
 
+        <!-- Treasure Tab -->
+        <div x-show="tab === 'treasure'">
+          <div class="treasure-tab">
+            <p class="treasure-tab__hint">
+              Treasure QR codes can be printed and placed anywhere. Anyone scanning one
+              instantly earns points — no conversation starts, and each person can collect
+              a treasure only once.
+            </p>
+            <p class="settings-form__default" x-show="!settingsTreasureHuntEnabled">
+              ⚠ Treasure hunt is currently <strong>off</strong>. Enable it in the Settings tab for these codes to work.
+            </p>
+            <p class="treasure-tab__hint">Default value: <strong x-text="treasureDefaultPoints + ' pts'"></strong> (change it in Settings). Leave a treasure's points blank to use this default.</p>
+
+            <div class="treasure-tab__add">
+              <input type="text" x-model="newTreasureLabel" maxlength="80"
+                placeholder="Label (e.g. Near the coffee machine)" class="treasure-tab__input">
+              <input type="number" min="1" x-model="newTreasurePoints"
+                :placeholder="'pts (' + treasureDefaultPoints + ')'" class="treasure-tab__points">
+              <button class="btn btn--primary" @click="addTreasure()">Add</button>
+            </div>
+
+            <div class="treasure-tab__actions" x-show="treasures.length > 0">
+              <button class="btn btn--ghost" @click="printAllTreasures()">🖨 Print all</button>
+            </div>
+
+            <ul class="treasure-list">
+              <template x-for="t in treasures" :key="t.id">
+                <li class="treasure-list__item" :class="{ 'treasure-list__item--disabled': t.enabled !== 1 }">
+                  <div class="treasure-list__main">
+                    <input type="text" x-model="t.label" maxlength="80" placeholder="(no label)" class="treasure-list__label">
+                    <input type="number" min="1" x-model="t.points" :placeholder="'(' + treasureDefaultPoints + ')'" class="treasure-list__points">
+                    <button class="btn btn--ghost btn--sm" @click="saveTreasure(t)">Save</button>
+                  </div>
+                  <div class="treasure-list__meta">
+                    <span x-text="'#' + t.id"></span>
+                    <span x-text="(t.scans || 0) + ' scans'"></span>
+                    <span x-text="(t.points ?? treasureDefaultPoints) + ' pts' + (t.points === null ? ' (default)' : '')"></span>
+                  </div>
+                  <div class="treasure-list__row">
+                    <label class="settings-toggle settings-toggle--sm">
+                      <input type="checkbox" :checked="t.enabled === 1" @change="toggleTreasure(t)">
+                      <span x-text="t.enabled === 1 ? 'Enabled' : 'Disabled'"></span>
+                    </label>
+                    <button class="btn btn--ghost btn--sm" @click="printTreasure(t)">🖨 Print</button>
+                    <button class="remove-btn" @click="deleteTreasure(t)">Delete</button>
+                  </div>
+                </li>
+              </template>
+            </ul>
+            <p class="treasure-tab__empty" x-show="treasures.length === 0">No treasures yet. Add one above.</p>
+          </div>
+        </div>
+
         <!-- Settings Tab -->
         <div x-show="tab === 'settings'">
           <div class="settings-form">
@@ -210,6 +264,19 @@ SOFTWARE.
                 <input type="checkbox" x-model="settingsQuestionsEnabled">
                 <span x-text="settingsQuestionsEnabled ? 'Enabled — a question is suggested at the start of each conversation' : 'Disabled — no question suggestions'"></span>
               </label>
+            </div>
+
+            <h3>Treasure Hunt</h3>
+            <p class="settings-form__hint">Special printable QR codes anyone can scan once to instantly earn points (no conversation). Manage the codes in the Treasure tab.</p>
+            <div class="settings-form__row">
+              <label class="settings-toggle">
+                <input type="checkbox" x-model="settingsTreasureHuntEnabled">
+                <span x-text="settingsTreasureHuntEnabled ? 'Enabled — treasure QR codes can be scanned' : 'Disabled — treasure QR codes are inactive'"></span>
+              </label>
+            </div>
+            <div class="settings-form__row">
+              <label for="treasure-points-input">Default points per treasure</label>
+              <input id="treasure-points-input" type="number" min="1" x-model.number="settingsTreasureDefaultPoints">
             </div>
 
             <h3>Maximum Participants</h3>
@@ -246,6 +313,9 @@ SOFTWARE.
 
     <!-- Toast -->
     <div class="toast toast--bottom" x-show="toast" x-text="toast" x-transition></div>
+
+    <!-- Hidden print area: populated by printTreasures(), shown only when printing -->
+    <div class="treasure-print" id="treasure-print"></div>
   </div>
 </body>
 </html>

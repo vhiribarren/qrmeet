@@ -230,7 +230,21 @@ SOFTWARE.
       <div class="score">
         <div class="score__hero">
           <div class="score__number" x-text="scoreData?.score ?? 0"></div>
-          <div class="score__label">people met</div>
+          <div class="score__label">points</div>
+          <div class="score__breakdown" x-show="(scoreData?.treasuresFound ?? 0) > 0">
+            <span>👥 <strong x-text="scoreData?.meetings ?? 0"></strong> met</span>
+            <span>🏆 <strong x-text="scoreData?.treasuresFound ?? 0"></strong> treasures (<span x-text="scoreData?.treasurePoints ?? 0"></span> pts)</span>
+          </div>
+        </div>
+
+        <!-- Treasures collected -->
+        <div class="score__list" x-show="(scoreData?.treasuresFound ?? 0) > 0">
+          <h3>🏆 Treasures found</h3>
+          <div class="score-item">
+            <span class="score-item__emoji">🏆</span>
+            <span class="score-item__name" x-text="(scoreData?.treasuresFound ?? 0) + ' collected'"></span>
+            <span class="score-item__hint" x-text="'+' + (scoreData?.treasurePoints ?? 0) + ' pts'"></span>
+          </div>
         </div>
 
         <!-- Pending encounters (not yet confirmed) -->
@@ -357,6 +371,19 @@ SOFTWARE.
           <div>✅</div>
           <h2>Meeting confirmed!</h2>
           <p>+1 point for both of you!</p>
+          <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
+        </div>
+        <div x-show="scanState === 'treasure'" class="scan__success">
+          <div class="scan__emoji">🏆</div>
+          <h2 x-text="'+' + treasureAward.points + (treasureAward.points === 1 ? ' point!' : ' points!')"></h2>
+          <p x-show="treasureAward.label" x-text="treasureAward.label"></p>
+          <p x-show="!treasureAward.label">Treasure found!</p>
+          <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
+        </div>
+        <div x-show="scanState === 'treasure_dup'" class="scan__confirmed">
+          <div>🏆</div>
+          <h2>Already collected</h2>
+          <p>You've already grabbed this treasure.</p>
           <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
         </div>
         <div x-show="scanState === 'error'" class="scan__error">

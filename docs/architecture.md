@@ -77,6 +77,32 @@ A `UNIQUE(room_id, user_a_id, user_b_id)` constraint prevents the same pair from
 
 Default questions are hardcoded in `worker/lib/questions.ts`. A row with `is_default = 1` records that the organiser has hidden the default question identified by `default_slug`. Custom questions have `is_default = 0` and a non-NULL `text`.
 
+### `treasures` (treasure hunt mode)
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PK | 12-character random ID — also the capability embedded in the printed QR (`/r/:roomId/treasure/:id`) |
+| `room_id` | TEXT FK | Parent room (`ON DELETE CASCADE`) |
+| `label` | TEXT | Admin-facing label (printed on the QR sheet) |
+| `points` | INTEGER | `NULL` = inherit the room's `treasureDefaultPoints`; a number overrides it |
+| `enabled` | INTEGER | `1` = scannable, `0` = disabled |
+| `created_at` | INTEGER | Unix timestamp |
+
+### `treasure_scans`
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PK | 12-character random ID |
+| `room_id` | TEXT | Parent room |
+| `treasure_id` | TEXT FK | The treasure that was scanned |
+| `user_id` | TEXT FK | The player who claimed it |
+| `points` | INTEGER | **Snapshot** of points awarded — later changing the default/override never rewrites it |
+| `scanned_at` | INTEGER | Unix timestamp |
+
+A `UNIQUE(treasure_id, user_id)` constraint enforces **one claim per player per treasure**.
+
+**Unified scoring.** A user's score is `COUNT(counted encounters) + SUM(treasure_scans.points)`, computed via a correlated subquery in the board, admin, and user score endpoints. The admin dashboard's "Meetings" stat uses the encounter-only count so treasure points don't inflate it.
+
+**Treasure mode settings** live in the `rooms.settings` JSON blob (see `worker/lib/settings.ts`): `treasureHuntEnabled` (default `false`) and `treasureDefaultPoints` (default `3`). No schema migration is needed to add settings.
+
 ---
 
 ## KV namespace — `QR_TOKENS`
@@ -221,11 +247,15 @@ QR tokens are stored in KV (not D1) with a 1-hour TTL for two reasons:
 
 ### No `ON DELETE CASCADE` on encounters
 
-The `encounters` table references `users(public_id)` without `CASCADE`. Deleting a user therefore requires explicitly deleting their encounters first (done in the admin delete route). This is intentional: it avoids silent data loss if a delete is triggered by mistake, and keeps the migration schema simple.
+The `encounters` table references `users(public_id)` without `CASCADE`. Deleting a user therefore requires explicitly deleting their encounters first (done in the admin delete route). This is intentional: it avoids silent data loss if a delete is triggered by mistake, and keeps the migration schema simple. The same applies to `treasure_scans`: the admin user-delete route removes a user's treasure scans before the user row, and `purgeRoom()` deletes `treasure_scans` and `treasures` alongside encounters/users.
+
+### Treasure id as capability (no separate secret)
+
+Treasure QR codes are static (printed once) and encode `/r/:roomId/treasure/:treasureId`. The `id` is a 12-character random slug (~36¹² ≈ 4.7×10¹⁸ combinations), so it is itself an unguessable capability — there is **no** separate secret column or rotating KV token like the per-user QR flow. The QR is public by design (whoever physically finds it may scan), so the only conceivable attack is guessing an id without finding the code, which the id's entropy makes infeasible. Re-printing simply re-renders the same stable URL.
 
 ### Scheduled cleanup of expired rooms
 
-Rooms carry an `expires_at` (`created_at` + `ROOM_TTL_DAYS`, default 7 days). An hourly **Cron Trigger** (`[triggers].crons` in `wrangler.toml`, handled by `scheduled()` in `worker/index.ts`) deletes every expired room and all of its data: encounters → users → rooms in D1 (in that order, since encounters has no `ON DELETE CASCADE`), then a `POST /cleanup` to the room's Durable Object, which clears its `active_encounters` table and cancels any pending alarm.
+Rooms carry an `expires_at` (`created_at` + `ROOM_TTL_DAYS`, default 7 days). An hourly **Cron Trigger** (`[triggers].crons` in `wrangler.toml`, handled by `scheduled()` in `worker/index.ts`) deletes every expired room and all of its data: treasure_scans → treasures → encounters → users → rooms in D1 (in that order, since these tables have no `ON DELETE CASCADE` to the room), then a `POST /cleanup` to the room's Durable Object, which clears its `active_encounters` table and cancels any pending alarm.
 
 This is the single mechanism that bounds data retention. Consequences:
 - Personal data lives at most `ROOM_TTL_DAYS` (default 7 days) + up to 1h (next cron tick) — matching the Privacy notice. The board and admin pages display a live countdown to the deletion time (`expiresAt`).

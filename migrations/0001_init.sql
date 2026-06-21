@@ -44,3 +44,30 @@ CREATE TABLE questions (
 );
 
 CREATE INDEX idx_questions_room ON questions(room_id);
+
+-- Treasure Hunt mode: special static QR codes that anyone can scan once to earn
+-- points instantly, with no conversation started. See docs/flows.md.
+
+CREATE TABLE treasures (
+  id         TEXT    PRIMARY KEY,
+  room_id    TEXT    NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  label      TEXT    NOT NULL DEFAULT '',
+  points     INTEGER,                                  -- NULL = inherit room default
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX idx_treasures_room ON treasures(room_id);
+
+CREATE TABLE treasure_scans (
+  id          TEXT    PRIMARY KEY,
+  room_id     TEXT    NOT NULL,
+  treasure_id TEXT    NOT NULL REFERENCES treasures(id),
+  user_id     TEXT    NOT NULL REFERENCES users(public_id),
+  points      INTEGER NOT NULL,                        -- snapshot of points awarded
+  scanned_at  INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(treasure_id, user_id)
+);
+
+CREATE INDEX idx_treasure_scans_room ON treasure_scans(room_id);
+CREATE INDEX idx_treasure_scans_user ON treasure_scans(user_id);
