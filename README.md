@@ -107,6 +107,8 @@ The Durable Object (`DurableRoom`) is registered automatically via the `[[migrat
 | `npm run deploy` | Deploy to Cloudflare |
 | `npm run db:migrate` | Apply D1 migrations locally |
 | `npm run db:migrate -- --remote` | Apply D1 migrations on production |
+| `npm test` | Run the Vitest suite (unit + Workers integration tests) |
+| `npm run test:watch` | Run the test suite in watch mode |
 | `npm run simulate` | Simulate users and encounters against a running instance |
 
 ## Further reading

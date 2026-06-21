@@ -67,6 +67,10 @@
   - `public/index.html` (Privacy section) — if data collection or third-party services change
 - **English only.** By default, all strings, labels, error messages,
   placeholders, aria-labels, and comments must be in English.
+- **Tests.** Run `npm test` before pushing. When changing a worker route, its
+  SQL, or the encounter/treasure/scoring logic, add or update a test under `test/`
+  (unit for pure helpers, integration via `SELF.fetch()` for routes). See
+  [architecture.md](architecture.md#testing).
 - **License header.** Every new source file must start with the MIT copyright block, adapted to the file format:
 
   `.ts`, `.tsx`, `.js`, `.css`:

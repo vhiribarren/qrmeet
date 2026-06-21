@@ -221,7 +221,20 @@ Never inline the auth check; always delegate to `verifyAdmin()` in `worker/route
 
 ### Testing
 
-There is no automated test suite. Correctness is verified manually using `npm run dev` and `npm run simulate`.
+Automated tests run with **Vitest** on the `@cloudflare/vitest-pool-workers` pool — tests
+execute inside the real `workerd` runtime with live D1/KV/Durable Object bindings, and each
+test gets isolated storage seeded from the project migrations (`test/apply-migrations.ts`
+applies `migrations/` via `readD1Migrations`). Two layers, under `test/`:
+
+- **Unit** (`test/unit/`): pure helpers — `settings`, `ids`, `questions`, `auth`.
+- **Integration** (`test/integration/`): the Hono routes end-to-end via `SELF.fetch()` with
+  real bindings — rooms, users, the scan/encounter lifecycle, treasure hunt, admin (auth,
+  settings, treasure CRUD, renew, purge), and the public board's unified scoring.
+
+Run with `npm test` (`npm run test:watch` to watch). The confirm-scan path marks the encounter
+timer elapsed directly in D1 (the same `UPDATE` the DurableRoom alarm runs) so it is
+deterministic without waiting. WebSocket endpoints and the Alpine front-end are **not** covered
+by the suite; `scripts/simulate.ts` remains a manual load/smoke tool (`npm run simulate`).
 
 ---
 

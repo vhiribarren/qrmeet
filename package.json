@@ -7,7 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply qrmeet-db",
-    "simulate": "tsx scripts/simulate.ts"
+    "simulate": "tsx scripts/simulate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "hono": "^4.6.0",
@@ -15,9 +17,11 @@
     "unique-names-generator": "^4.7.1"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.18",
     "@cloudflare/workers-types": "^4.20241205.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
+    "vitest": "^4.1.9",
     "wrangler": "^4.95.0"
   }
 }
