@@ -116,7 +116,9 @@ SOFTWARE.
                 <th>#</th>
                 <th>Participant</th>
                 <th>Joined</th>
-                <th>Score</th>
+                <th title="Total score">Total</th>
+                <th title="Meetings (confirmed conversations)">👥</th>
+                <th title="Treasure points">🏆</th>
                 <th>Network</th>
                 <th></th>
               </tr>
@@ -132,7 +134,9 @@ SOFTWARE.
                     </div>
                   </td>
                   <td x-text="formatDate(user.created_at)"></td>
-                  <td x-text="user.score"></td>
+                  <td class="leaderboard__total" x-text="user.score"></td>
+                  <td x-text="user.meetings"></td>
+                  <td x-text="user.treasure_points"></td>
                   <td>
                     <span x-show="user.network_tag"
                       class="network-tag"

@@ -115,8 +115,15 @@ function boardApp() {
       this.roomName = data.roomName || ''
       this.expiresAt = data.expiresAt || 0
       this.topScore = this.scores.length > 0 ? this.scores[0].score : 0
-      this.totalMeetings = this.scores.reduce((sum, u) => sum + (u.score || 0), 0) / 2
-      this.totalMeetings = Math.floor(this.totalMeetings)
+      // Each confirmed encounter links two participants, so total meetings = sum/2.
+      // Use the encounter-only `meetings` field so treasure points don't inflate it.
+      this.totalMeetings = Math.floor(this.scores.reduce((sum, u) => sum + (u.meetings || 0), 0) / 2)
+    },
+
+    // True when at least one displayed participant has treasure points — used to
+    // reveal the breakdown columns only when the treasure hunt is in play.
+    get hasTreasures() {
+      return this.scores.some((u) => (u.treasure_points || 0) > 0)
     },
 
     async loadGraph() {

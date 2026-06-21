@@ -79,7 +79,9 @@ SOFTWARE.
             <tr>
               <th>#</th>
               <th>Participant</th>
-              <th>Score</th>
+              <th x-text="hasTreasures ? 'Total' : 'Score'"></th>
+              <th x-show="hasTreasures" title="Meetings (confirmed conversations)">👥</th>
+              <th x-show="hasTreasures" title="Treasure points">🏆</th>
             </tr>
           </thead>
           <tbody>
@@ -92,7 +94,9 @@ SOFTWARE.
                     <span x-text="user.display_name"></span>
                   </div>
                 </td>
-                <td x-text="user.score"></td>
+                <td class="leaderboard__total" x-text="user.score"></td>
+                <td x-show="hasTreasures" x-text="user.meetings"></td>
+                <td x-show="hasTreasures" x-text="user.treasure_points"></td>
               </tr>
             </template>
           </tbody>

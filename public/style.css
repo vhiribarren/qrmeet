@@ -443,6 +443,7 @@ emoji-picker {
   color: var(--text-muted); text-transform: uppercase; border-bottom: 1px solid var(--border);
 }
 .leaderboard td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.leaderboard__total { font-weight: 800; }
 .leaderboard tr:hover { background: var(--bg); }
 .leaderboard__empty { text-align: center; color: var(--text-muted); padding: 40px; }
 .leaderboard__note { text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 12px; }

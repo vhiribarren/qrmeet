@@ -61,6 +61,7 @@ admin.get('/rooms/:roomId/scores', async (c) => {
       u.created_at,
       SUBSTR(u.ip_hash, 1, 8) as network_tag,
       COUNT(CASE WHEN e.counted = 1 THEN 1 END) as meetings,
+      (SELECT COALESCE(SUM(ts.points), 0) FROM treasure_scans ts WHERE ts.user_id = u.public_id) as treasure_points,
       COUNT(CASE WHEN e.counted = 1 THEN 1 END)
         + (SELECT COALESCE(SUM(ts.points), 0) FROM treasure_scans ts WHERE ts.user_id = u.public_id) as score
     FROM users u
