@@ -66,6 +66,7 @@ function adminApp() {
     expiresAt: 0,
     countdown: '',
     _countdownTimer: null,
+    roomTtlDays: 7,
     settingsName: '',
     settingsIsOpen: true,
     settingsScanningEnabled: true,
@@ -250,6 +251,23 @@ function adminApp() {
       this.settingsDurationIsDefault = data.encounterDurationIsDefault
       this.settingsTreasureHuntEnabled = data.treasureHuntEnabled
       this.settingsTreasureDefaultPoints = data.treasureDefaultPoints
+      this.roomTtlDays = data.roomTtlDays ?? this.roomTtlDays
+    },
+
+    async extendRoom() {
+      const res = await fetch(`/api/admin/rooms/${this.roomId}/extend`, {
+        method: 'POST',
+        headers: { 'x-admin-token': this.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        this.expiresAt = data.expiresAt
+        this.startCountdown()
+        this.showToast(`Extended by ${this.roomTtlDays} days`)
+      } else {
+        this.showToast('Failed to extend room')
+      }
     },
 
     async saveSettings() {

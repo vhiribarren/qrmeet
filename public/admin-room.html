@@ -68,6 +68,7 @@ SOFTWARE.
           <h1>🛠 Admin Dashboard</h1>
           <p class="admin-header__sub" x-text="'Room: ' + roomId"></p>
           <p class="admin-header__expiry" x-show="countdown" x-text="countdown"></p>
+          <button class="btn btn--ghost btn--sm" x-show="expiresAt" @click="extendRoom()">⏱ Extend</button>
           <a :href="'/r/' + roomId + '/board'" target="_blank" rel="noopener" class="btn btn--ghost">📊 Open Board</a>
         </div>
 

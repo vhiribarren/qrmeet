@@ -287,7 +287,8 @@ Fetch current room settings.
   "maxParticipants": 100,
   "maxParticipantsIsDefault": true,
   "treasureHuntEnabled": false,
-  "treasureDefaultPoints": 3
+  "treasureDefaultPoints": 3,
+  "roomTtlDays": 7
 }
 ```
 
@@ -319,8 +320,24 @@ Pass `null` for `encounterDurationSeconds` or `maxParticipants` to reset to the 
 
 ---
 
+### `POST /api/admin/rooms/:roomId/extend`
+Push back the room's auto-deletion time. New expiry is `max(current expiry, now) + days`, so extending never shortens the window.
+
+**Body** (optional)
+```json
+{ "days": 7 }
+```
+`days` defaults to `ROOM_TTL_DAYS` (server env, default 7) and must be an integer between 1 and 365.
+
+**Response `200`**
+```json
+{ "expiresAt": 1234567890 }
+```
+
+---
+
 ### `DELETE /api/admin/rooms/:roomId`
-Permanently delete the room and all its data (encounters, users, questions). Also wipes the room's Durable Object.
+Permanently delete the room and all its data (encounters, users, questions, treasures). Also wipes the room's Durable Object.
 
 **Response `200`**
 ```json
