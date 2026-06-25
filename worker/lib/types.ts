@@ -24,7 +24,6 @@
 
 export interface Env {
   DB: D1Database
-  QRMEET_TOKENS: KVNamespace
   DURABLE_ROOM: DurableObjectNamespace
   ASSETS: Fetcher
   ENCOUNTER_DURATION_SECONDS: string
@@ -50,6 +49,7 @@ export interface User {
   emoji: string
   ip_hash: string | null
   created_at: number
+  qr_token: string | null   // single-use scan token; NULL once burned
 }
 
 export interface Encounter {

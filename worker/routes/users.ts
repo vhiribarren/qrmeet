@@ -186,8 +186,9 @@ users.post('/:uid/qr-token', async (c) => {
   if (!user) return c.json({ error: 'Unauthorized' }, 401)
 
   const token = newToken()
-  const kvKey = `qrtoken:${user.room_id}:${user.public_id}`
-  await c.env.QRMEET_TOKENS.put(kvKey, token, { expirationTtl: 3600 })
+  await c.env.DB.prepare(
+    'UPDATE users SET qr_token = ? WHERE public_id = ?'
+  ).bind(token, user.public_id).run()
 
   return c.json({ token })
 })

@@ -22,8 +22,7 @@ Browser (PWA, Alpine.js)
   │  REST + WebSocket
   ▼
 Cloudflare Worker (Hono)
-  ├── D1 (SQLite)       — rooms, users, encounters
-  ├── KV (QRMEET_TOKENS)    — single-use QR tokens (one per user, TTL 1h)
+  ├── D1 (SQLite)       — rooms, users (incl. single-use QR token), encounters
   └── Durable Objects (SQLite-backed)
         └── DurableRoom — one instance per room
               ├── WebSocket connections for ALL participants in the room
@@ -52,6 +51,7 @@ Cloudflare Worker (Hono)
 | `emoji` | TEXT | Editable on the ID card |
 | `ip_hash` | TEXT | HMAC of the joining IP (salted per room). Surfaced as the admin `network_tag` for spotting bot/duplicate accounts — **not** used to deduplicate joins |
 | `created_at` | INTEGER | Unix timestamp |
+| `qr_token` | TEXT | Single-use scan token for this user's QR card. Overwritten on each refresh (`POST …/qr-token`), set `NULL` when burned by a scan. Lives in D1 (not KV) because the scan path is read-after-write critical and KV is only eventually consistent — a freshly issued token could otherwise read back stale and surface "Invalid or expired QR code". Single-use + constant rotation means no expiry is needed |
 
 ### `encounters`
 | Column | Type | Description |
@@ -103,17 +103,6 @@ A `UNIQUE(treasure_id, user_id)` constraint enforces **one claim per player per 
 **Unified scoring.** A user's score is `COUNT(counted encounters) + SUM(treasure_scans.points)`, computed via a correlated subquery in the board, admin, and user score endpoints. The admin dashboard's "Meetings" stat uses the encounter-only count so treasure points don't inflate it.
 
 **Treasure mode settings** live in the `rooms.settings` JSON blob (see `worker/lib/settings.ts`): `treasureHuntEnabled` (default `false`) and `treasureDefaultPoints` (default `3`). No schema migration is needed to add settings.
-
----
-
-## KV namespace — `QRMEET_TOKENS`
-
-Two key patterns, both with a 1-hour TTL:
-
-| Key pattern | Value | Purpose |
-|---|---|---|
-| `qrtoken:{roomId}:{publicId}` | opaque token string | Single-use QR token per user |
-| `ratelimit:join:{roomId}:{ip}` | join count (integer as string) | Rate limiting joins per IP per room |
 
 ---
 
@@ -223,7 +212,7 @@ Never inline the auth check; always delegate to `verifyAdmin()` in `worker/route
 ### Testing
 
 Automated tests run with **Vitest** on the `@cloudflare/vitest-pool-workers` pool — tests
-execute inside the real `workerd` runtime with live D1/KV/Durable Object bindings, and each
+execute inside the real `workerd` runtime with live D1/Durable Object bindings, and each
 test gets isolated storage seeded from the project migrations (`test/apply-migrations.ts`
 applies `migrations/` via `readD1Migrations`). Two layers, under `test/`:
 
@@ -253,11 +242,11 @@ The admin password is hashed client-side (SHA-256 via Web Crypto) before being s
 
 Encounter timers require a server-side alarm that fires reliably after N seconds, even if no client is connected. D1 (SQLite) is stateless and cannot self-schedule work. Durable Objects provide both persistent state and the `alarm()` primitive, making them the natural fit. Each room gets one DO instance, so timers are isolated per room and scale independently.
 
-### Single-use QR tokens in KV
+### Single-use QR tokens in D1
 
-QR tokens are stored in KV (not D1) with a 1-hour TTL for two reasons:
-- **Atomicity**: KV writes are fast and TTL-based expiry is automatic — no cron needed.
-- **Single-use enforcement**: the token is deleted on first successful scan, preventing replay attacks without a separate "used" flag.
+The per-user scan token lives in `users.qr_token` (D1), not KV. KV is only **eventually consistent**: a token written by `POST …/qr-token` can read back stale (or as the just-deleted value) from a different edge location for up to ~60 s. Since scan verification is read-after-write critical, that surfaced as "Invalid or expired QR code" on a QR the user had just refreshed. D1 is strongly consistent, so the freshly issued token is always visible.
+
+Single-use enforcement is still cheap: the token is set `NULL` on first successful scan, preventing replay without a separate "used" flag. No expiry is needed — the token is single-use and rotated on every encounter event, and it lives on the existing user row (nothing to garbage-collect).
 
 ### No `ON DELETE CASCADE` on encounters
 

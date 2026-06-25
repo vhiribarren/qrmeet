@@ -18,10 +18,6 @@ binding = "DB"
 database_name = "qrmeet-db"
 database_id = "<your-d1-database-id>"
 
-[[kv_namespaces]]
-binding = "QRMEET_TOKENS"
-id = "<your-kv-namespace-id>"
-
 [durable_objects]
 bindings = [
   { name = "DURABLE_ROOM", class_name = "DurableRoom" }

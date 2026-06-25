@@ -93,7 +93,7 @@ Update display name and/or emoji.
 ---
 
 ### `POST /api/rooms/:roomId/users/:uid/qr-token`
-Issue (or rotate) a single-use QR token for this user. Overwrites any existing token. The token is stored in KV with a 1-hour TTL and is burned on first successful scan.
+Issue (or rotate) a single-use QR token for this user. Overwrites any existing token (`users.qr_token` in D1) and is burned on first successful scan.
 
 **Header** `x-private-token: <privateToken>`
 
@@ -154,7 +154,7 @@ The client first checks that the scanned QR belongs to the same room. If not, it
 The server:
 1. Rejects with `403` if the organizer has paused the game (`scanningEnabled: false`) — no encounter is started or confirmed. The client shows the returned message on the scan page.
 2. Verifies the scanner's identity via `privateToken`.
-3. Verifies the QR token against KV (the token is **not burned** if the scan would be rejected).
+3. Verifies the QR token against the scannee's `users.qr_token` in D1 (the token is **not burned** if the scan would be rejected).
 4. Checks whether an open encounter already exists between the pair:
    - **No encounter** → checks the busy guard below, then burns token, creates encounter row, picks two random questions from the room's pool (one per participant), notifies `DurableRoom`, returns `started`. If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
    - **Open encounter, `notified_at` not set** → session still in progress, returns `409`.

@@ -33,7 +33,7 @@ Backend server:
 
 ## Local development
 
-No Cloudflare account needed. Wrangler simulates D1, KV, and Durable Objects locally.
+No Cloudflare account needed. Wrangler simulates D1 and Durable Objects locally.
 
 ```bash
 npm install
@@ -71,27 +71,13 @@ database_name = "qrmeet-db"
 database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # ← paste here
 ```
 
-### 3. Create the KV namespace
-
-```bash
-npx wrangler kv namespace create QRMEET_TOKENS
-```
-
-Copy the `id` from the output and paste it into `wrangler.toml`:
-
-```toml
-[[kv_namespaces]]
-binding = "KV"
-id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # ← paste here
-```
-
-### 4. Apply the database schema
+### 3. Apply the database schema
 
 ```bash
 npm run db:migrate -- --remote
 ```
 
-### 5. Deploy
+### 4. Deploy
 
 ```bash
 npm run deploy

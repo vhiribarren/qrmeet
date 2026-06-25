@@ -77,10 +77,10 @@ scan.post('/', async (c) => {
   ).bind(body.scanneePublicId, roomId).first<User>()
   if (!scannee) return c.json({ error: 'User not found' }, 404)
 
-  // Verify QR token (not burned yet — only burn if we're going to proceed)
-  const kvKey = `qrtoken:${roomId}:${body.scanneePublicId}`
-  const storedToken = await c.env.QRMEET_TOKENS.get(kvKey)
-  if (!storedToken || storedToken !== body.qrToken) {
+  // Verify QR token (not burned yet — only burn if we're going to proceed).
+  // The token lives on the scannee's users row (strongly consistent in D1), so a
+  // freshly issued token is never read back stale the way it could be from KV.
+  if (!scannee.qr_token || scannee.qr_token !== body.qrToken) {
     return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
   }
 
@@ -103,7 +103,9 @@ scan.post('/', async (c) => {
     }
 
     // Timer elapsed and notified — burn token and confirm
-    await c.env.QRMEET_TOKENS.delete(kvKey)
+    await c.env.DB.prepare(
+      'UPDATE users SET qr_token = NULL WHERE public_id = ?'
+    ).bind(scannee.public_id).run()
     const now = Math.floor(Date.now() / 1000)
     await c.env.DB.prepare(
       'UPDATE encounters SET counted = 1, closed_at = ? WHERE id = ?'
@@ -138,7 +140,9 @@ scan.post('/', async (c) => {
   }
 
   // New encounter — burn token
-  await c.env.QRMEET_TOKENS.delete(kvKey)
+  await c.env.DB.prepare(
+    'UPDATE users SET qr_token = NULL WHERE public_id = ?'
+  ).bind(scannee.public_id).run()
   const encId = newEncounterId()
   const now = Math.floor(Date.now() / 1000)
   const resolved = resolveSettings(settings, c.env)

@@ -171,20 +171,16 @@ Contrast with the encounter flow above: a treasure claim is a single one-shot aw
 stateDiagram-v2
     [*] --> Generated : POST /qr-token
 
-    Generated --> Cached : Stored in KV (TTL 1h) + client localStorage
+    Generated --> Cached : Stored in users.qr_token (D1) + client localStorage
 
     Cached --> Displayed : QR code rendered on card
 
     Displayed --> Consumed : Successful scan (started or confirmed)
-    note right of Consumed : Deleted from KV and localStorage
-
-    Displayed --> Expired : TTL 1h elapsed
-    note right of Expired : KV auto-delete
+    note right of Consumed : qr_token set NULL in D1, cleared from localStorage
 
     Displayed --> Displayed : Page refresh (reuses localStorage)
 
     Consumed --> [*]
-    Expired --> [*]
 
     Consumed --> Regenerated : forceRefreshQrToken()
     Regenerated --> Cached
@@ -207,9 +203,9 @@ sequenceDiagram
     Note over A: Displays QR code
 
     B->>S: POST /scan {scanneeId: A, qrToken}
-    S->>S: Verify KV token ✓
+    S->>S: Verify qr_token (D1) ✓
     S->>S: Create encounter (A,B)
-    S->>S: Burn KV token
+    S->>S: Burn qr_token (set NULL)
     S->>DO: POST /start-encounter
     DO->>DO: Store encounter, set alarm
     DO-->>A: session_start {partner: B, endsAt}
