@@ -57,6 +57,7 @@ scan.post('/', async (c) => {
   ).bind(roomId).first<{ settings: string }>()
   const settings = parseSettings(room?.settings)
   if (!settings.scanningEnabled) {
+    console.info('encounter.rejected', { room: roomId, reason: 'scanning_disabled' })
     return c.json({ error: 'The organizer has paused the game — scanning is disabled for now. Please wait until it resumes.' }, 403)
   }
 
@@ -68,6 +69,7 @@ scan.post('/', async (c) => {
 
   // Cannot scan yourself
   if (scanner.public_id === body.scanneePublicId) {
+    console.info('encounter.rejected', { room: roomId, reason: 'self_scan', scanner: scanner.public_id })
     return c.json({ error: 'Cannot scan yourself' }, 400)
   }
 
@@ -75,12 +77,16 @@ scan.post('/', async (c) => {
   const scannee = await c.env.DB.prepare(
     'SELECT * FROM users WHERE public_id = ? AND room_id = ?'
   ).bind(body.scanneePublicId, roomId).first<User>()
-  if (!scannee) return c.json({ error: 'User not found' }, 404)
+  if (!scannee) {
+    console.info('encounter.rejected', { room: roomId, reason: 'scannee_not_found', scanner: scanner.public_id, scannee: body.scanneePublicId })
+    return c.json({ error: 'User not found' }, 404)
+  }
 
   // Verify QR token (not burned yet — only burn if we're going to proceed).
   // The token lives on the scannee's users row (strongly consistent in D1), so a
   // freshly issued token is never read back stale the way it could be from KV.
   if (!scannee.qr_token || scannee.qr_token !== body.qrToken) {
+    console.info('encounter.rejected', { room: roomId, reason: 'invalid_qr_token', scanner: scanner.public_id, scannee: scannee.public_id })
     return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
   }
 
@@ -96,9 +102,11 @@ scan.post('/', async (c) => {
 
   if (existing) {
     if (existing.counted === 1) {
+      console.info('encounter.rejected', { room: roomId, reason: 'already_completed', encounter: existing.id, userA, userB })
       return c.json({ error: 'You already completed a session with this person.' }, 409)
     }
     if (!existing.notified_at) {
+      console.info('encounter.rejected', { room: roomId, reason: 'in_progress', encounter: existing.id, userA, userB })
       return c.json({ error: 'Session still in progress — come back after the 5 minutes are up.' }, 409)
     }
 
