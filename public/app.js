@@ -145,6 +145,7 @@ function qrmeet() {
     // WebSocket
     ws: null,
     wsReconnectTimer: null,
+    wsPingTimer: null,
 
     // Emoji palette
     emojis: [], // no longer used — emoji-picker-element handles this
@@ -819,10 +820,26 @@ function qrmeet() {
       // never appears in server access/observability logs.
       this.ws = new WebSocket(url, ['qrmeet.token', this.me.privateToken])
 
+      this.ws.onopen = () => this.startWsPing()
       this.ws.onmessage = (evt) => this.handleWsMessage(JSON.parse(evt.data))
       this.ws.onclose = () => {
+        this.stopWsPing()
         this.wsReconnectTimer = setTimeout(() => this.connectWs(), 3000)
       }
+    },
+
+    // Heartbeat: a periodic ping keeps the connection alive through edge/NAT
+    // idle timeouts. The server answers it via auto-response without waking the
+    // Durable Object, so reconnect churn is avoided at no compute cost.
+    startWsPing() {
+      this.stopWsPing()
+      this.wsPingTimer = setInterval(() => {
+        if (this.ws && this.ws.readyState === 1) this.ws.send('{"type":"ping"}')
+      }, 30000)
+    },
+
+    stopWsPing() {
+      if (this.wsPingTimer) { clearInterval(this.wsPingTimer); this.wsPingTimer = null }
     },
 
     handleWsMessage(msg) {

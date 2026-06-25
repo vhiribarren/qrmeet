@@ -47,6 +47,14 @@ export class DurableRoom extends DurableObject<Env> {
     if (this.initialized) return
     this.initialized = true
 
+    // Keepalive: answer client pings at the runtime level so idle WebSockets
+    // (user and board) are not dropped by edge/NAT idle timeouts. The auto-
+    // response is served without waking the DO from hibernation, so it costs no
+    // duration. The pong is valid JSON so clients can parse it and ignore it.
+    this.ctx.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair('{"type":"ping"}', '{"type":"pong"}')
+    )
+
     // Create table if not exists (SQLite-backed DO)
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS active_encounters (

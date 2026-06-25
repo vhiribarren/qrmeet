@@ -51,6 +51,7 @@ function boardApp() {
     copied: false,
     graphData: null,
     _ws: null,
+    _wsPingTimer: null,
     expiresAt: 0,
     countdown: '',
     _countdownTimer: null,
@@ -76,6 +77,7 @@ function boardApp() {
       if (this._ws) this._ws.close()
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
       const ws = new WebSocket(`${proto}//${location.host}/api/rooms/${this.roomId}/board/ws`)
+      ws.addEventListener('open', () => this.startWsPing())
       ws.addEventListener('message', (e) => {
         const msg = JSON.parse(e.data)
         if (msg.type === 'board_update') {
@@ -83,9 +85,23 @@ function boardApp() {
           if (this.tab === 'graph' && this.graphData !== null) this.loadGraph()
         }
       })
-      ws.addEventListener('close', () => { setTimeout(() => this.connectWs(), 3000) })
+      ws.addEventListener('close', () => { this.stopWsPing(); setTimeout(() => this.connectWs(), 3000) })
       ws.addEventListener('error', () => ws.close())
       this._ws = ws
+    },
+
+    // Heartbeat: a periodic ping keeps the connection alive through edge/NAT
+    // idle timeouts. The server auto-responds without waking the Durable Object,
+    // so reconnect churn is avoided at no compute cost.
+    startWsPing() {
+      this.stopWsPing()
+      this._wsPingTimer = setInterval(() => {
+        if (this._ws && this._ws.readyState === 1) this._ws.send('{"type":"ping"}')
+      }, 30000)
+    },
+
+    stopWsPing() {
+      if (this._wsPingTimer) { clearInterval(this._wsPingTimer); this._wsPingTimer = null }
     },
 
     generateRoomQr() {
