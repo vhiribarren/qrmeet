@@ -25,7 +25,7 @@
 import { Hono } from 'hono'
 import { Env, User, Room } from '../lib/types'
 import type { DurableRoom } from '../durable/DurableRoom'
-import { newPublicId, generateToken, newToken } from '../lib/ids'
+import { newPublicId, newToken } from '../lib/ids'
 import { extractPrivateToken, hmacIp } from '../lib/auth'
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
 import { parseSettings, resolveSettings } from '../lib/settings'
@@ -90,22 +90,33 @@ users.post('/', async (c) => {
 
   const maxParticipants = resolved.maxParticipants
   const rawIp = c.req.header('cf-connecting-ip') ?? ''
+  // ip_hash is retained only for the admin "network_tag" (spotting bot/duplicate
+  // accounts); it is no longer used to deduplicate joins — that wrongly merged
+  // distinct people sharing an IP (event Wi-Fi, NAT, CGNAT).
   const ipHash = rawIp && room.ip_salt
     ? await hmacIp(rawIp, room.ip_salt)
     : null
 
-  // Idempotency: if this IP already joined this room in the last 30 seconds,
-  // return the existing user instead of creating a duplicate. This prevents ghost
-  // users created by messaging-app link previews, iOS WebView pre-loads, or any
-  // other automated HTTP agent that executes the page's JavaScript.
-  if (ipHash) {
-    const recent = await c.env.DB.prepare(
-      'SELECT public_id, private_token, display_name FROM users WHERE room_id = ? AND ip_hash = ? AND created_at >= ?'
-    ).bind(roomId, ipHash, Math.floor(Date.now() / 1000) - 30).first<{ public_id: string; private_token: string; display_name: string }>()
-    if (recent) {
-      console.info('user.rejoined', { room: roomId, user: recent.public_id })
-      return c.json({ publicId: recent.public_id, privateToken: recent.private_token, displayName: recent.display_name }, 201)
-    }
+  // The client mints its own high-entropy private token (persisted in its
+  // localStorage) and sends it here. The token doubles as the join idempotency
+  // key: it exists *before* the first request, so two near-simultaneous joins
+  // from the same device (e.g. a link prefetch plus the real navigation) carry
+  // the same token and collapse to a single account — without ever grouping
+  // distinct people who merely share an IP. Reject anything too short/malformed
+  // to keep the bearer token unguessable.
+  const body = await c.req.json<{ privateToken?: string }>().catch(() => ({} as { privateToken?: string }))
+  const privateToken = body.privateToken
+  if (!privateToken || !/^[A-Za-z0-9]{32,128}$/.test(privateToken)) {
+    return c.json({ error: 'A valid privateToken is required' }, 400)
+  }
+
+  // Idempotent fast path: this device already joined — return the same account
+  // and skip the capacity check so a returning participant is never bounced.
+  const existing = await c.env.DB.prepare(
+    'SELECT public_id, display_name FROM users WHERE private_token = ? AND room_id = ?'
+  ).bind(privateToken, roomId).first<{ public_id: string; display_name: string }>()
+  if (existing) {
+    return c.json({ publicId: existing.public_id, privateToken, displayName: existing.display_name }, 201)
   }
 
   const count = await c.env.DB.prepare(
@@ -117,20 +128,28 @@ users.post('/', async (c) => {
   }
 
   const publicId = newPublicId()
-  const privateToken = generateToken()
   const displayName = randomName()
   const now = Math.floor(Date.now() / 1000)
 
+  // ON CONFLICT(private_token): if two first-time joins from the same device race
+  // to this point, only one row is written; the loser falls through to re-read it
+  // below, so both responses return the same identity.
   await c.env.DB.prepare(
-    'INSERT INTO users (public_id, private_token, room_id, display_name, ip_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    'INSERT INTO users (public_id, private_token, room_id, display_name, ip_hash, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(private_token) DO NOTHING'
   ).bind(publicId, privateToken, roomId, displayName, ipHash, now).run()
+
+  // Re-read by token to get the canonical row (this insert's, or the race winner's).
+  const created = await c.env.DB.prepare(
+    'SELECT public_id, display_name FROM users WHERE private_token = ? AND room_id = ?'
+  ).bind(privateToken, roomId).first<{ public_id: string; display_name: string }>()
+  if (!created) return c.json({ error: 'Could not join room' }, 500)
 
   const doId = c.env.DURABLE_ROOM.idFromName(roomId)
   const stub = c.env.DURABLE_ROOM.get(doId) as unknown as DurableObjectStub<DurableRoom>
   await stub.broadcastBoardUpdate()
 
-  console.info('user.joined', { room: roomId, user: publicId, displayName })
-  return c.json({ publicId, privateToken, displayName }, 201)
+  console.info('user.joined', { room: roomId, user: created.public_id, displayName: created.display_name })
+  return c.json({ publicId: created.public_id, privateToken, displayName: created.display_name }, 201)
 })
 
 // POST /api/rooms/:roomId/users/:uid/profile — update name/emoji

@@ -41,8 +41,19 @@ export async function createRoom(opts: { name?: string; password?: string } = {}
   return { roomId: data.id as string, adminToken, expiresAt: data.expiresAt as number, res, data }
 }
 
-export async function joinUser(roomId: string): Promise<TestUser> {
-  const res = await fetchWorker(`${BASE}/api/rooms/${roomId}/users`, { method: 'POST' })
+// The client supplies its own private token, which is also the join idempotency
+// key. Pass an explicit token to exercise idempotent re-joins.
+export function newPrivateToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32))
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+export async function joinUser(roomId: string, privateToken = newPrivateToken()): Promise<TestUser> {
+  const res = await fetchWorker(`${BASE}/api/rooms/${roomId}/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ privateToken }),
+  })
   const data = await json(res)
   return { publicId: data.publicId, privateToken: data.privateToken }
 }

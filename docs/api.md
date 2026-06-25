@@ -63,9 +63,15 @@ Fetch room metadata.
 ### `POST /api/rooms/:roomId/users`
 Join a room. Creates a new anonymous user and returns their credentials.
 
+**Body**
+```json
+{ "privateToken": "<client-generated token, 32–128 [A-Za-z0-9] chars>" }
+```
+The client mints its own high-entropy private token (and persists it in `localStorage`). It is the user's bearer secret **and** the join idempotency key: because it exists before the first request, two near-simultaneous joins from the same device (a link prefetch plus the real navigation) send the same token and collapse to a single account, while distinct people — even behind the same IP (event Wi-Fi, NAT, CGNAT) — get distinct accounts. A request with a missing or malformed token is rejected `400`. Posting an already-registered token is idempotent: it returns the existing account and bypasses the participant cap. Known bot/crawler User-Agents are rejected `403`.
+
 **Response `201`**
 ```json
-{ "publicId": "abc123def456", "privateToken": "<32-char token>", "displayName": "Alice" }
+{ "publicId": "abc123def456", "privateToken": "<echoed token>", "displayName": "Alice" }
 ```
 
 ---

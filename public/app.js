@@ -71,6 +71,17 @@ function randomEmoji() {
 }
 
 // Safe fetch that always returns { ok, data, error }
+// The client mints its own private token before the first join. Because it
+// exists ahead of the request, it acts as the join idempotency key: a prefetch
+// plus the real navigation on the same device send the same token and collapse
+// to one account, while distinct people (even on the same IP) get distinct
+// tokens. 256 bits of entropy keeps the bearer token unguessable.
+function genPrivateToken() {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 async function apiFetch(url, options = {}) {
   const res = await fetch(url, options)
   let data
@@ -358,8 +369,13 @@ function qrmeet() {
           return
         }
 
-        // Join as new user
-        const { ok, data } = await apiFetch(`/api/rooms/${roomId}/users`, { method: 'POST' })
+        // Join as new user. The client supplies the private token (also the join
+        // idempotency key) so concurrent first-loads on one device share an account.
+        const { ok, data } = await apiFetch(`/api/rooms/${roomId}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ privateToken: genPrivateToken() }),
+        })
         if (!ok) throw new Error(data.error || 'Could not join room')
         const emoji = randomEmoji()
         this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: data.displayName, emoji }
@@ -395,7 +411,11 @@ function qrmeet() {
           this.me = saved.me
           return
         }
-        const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users`, { method: 'POST' })
+        const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ privateToken: genPrivateToken() }),
+        })
         if (!ok) throw new Error(data.error || 'Could not join room')
         const emoji = randomEmoji()
         this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: data.displayName, emoji }

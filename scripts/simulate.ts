@@ -23,10 +23,14 @@
  */
 
 /**
- * Simulation script — creates a room, joins N users, and drives encounters end-to-end.
+ * Simulation script — creates a room, joins N users, and drives the game end-to-end.
  *
- * Encounters run in parallel "rounds" (round-robin schedule) so that no user appears
- * twice in the same round, avoiding QR-token conflicts.
+ * Encounters run strictly **one at a time** (sequentially): each is started, then the
+ * script waits for its timer to expire, then it confirms it, before moving to the next.
+ * This mirrors a single pair meeting at a time — there are no parallel rounds.
+ *
+ * It also exercises the treasure-hunt feature: with --treasures N, it creates N treasure
+ * QR codes and has every user claim each one (each awards points once per user).
  *
  * Usage:
  *   npx tsx scripts/simulate.ts [options]
@@ -35,14 +39,21 @@
  *   --url         Base URL of the QRMeet server  (default: http://localhost:8787)
  *   --users       Number of users to create      (default: 10)
  *   --encounters  Number of encounters to run    (default: all unique pairs)
- *   --name        Room name                      (default: SimulationRoom)
+ *   --treasures   Number of treasure QRs to create and have everyone claim (default: 0)
+ *   --name        Room name                       (default: SimulationRoom)
+ *   --password    Admin password                  (default: simtest123)
+ *   --room        Use an existing room id instead of creating one
+ *
+ * Tip: set ENCOUNTER_DURATION_SECONDS low in wrangler.toml (e.g. "5") before simulating —
+ * because encounters are sequential, the total runtime is roughly
+ * encounters × (duration + buffer).
  */
 
 import { parseArgs } from 'node:util'
 
 async function hashPassword(password: string): Promise<string> {
   const data = new TextEncoder().encode(password)
-  const buf  = await (globalThis.crypto as Crypto).subtle.digest('SHA-256', data)
+  const buf = await (globalThis.crypto as Crypto).subtle.digest('SHA-256', data)
   return btoa(String.fromCharCode(...new Uint8Array(buf)))
 }
 
@@ -51,16 +62,19 @@ const { values: args } = parseArgs({
     url:        { type: 'string', default: 'http://localhost:8787' },
     users:      { type: 'string', default: '10' },
     encounters: { type: 'string' },
+    treasures:  { type: 'string', default: '0' },
     name:       { type: 'string', default: 'SimulationRoom' },
+    password:   { type: 'string', default: 'simtest123' },
     room:       { type: 'string' },
     help:       { type: 'boolean', default: false },
   },
   strict: false,
 })
 
-const BASE_URL   = args.url!
-const USER_COUNT = Math.max(2, parseInt(args.users!))
-const ROOM_NAME  = args.name!
+const BASE_URL       = args.url!
+const USER_COUNT     = Math.max(2, parseInt(args.users!))
+const TREASURE_COUNT = Math.max(0, parseInt(args.treasures ?? '0'))
+const ROOM_NAME      = args.name!
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
@@ -71,6 +85,16 @@ async function apiPost<T>(path: string, body: object, headers: Record<string, st
     body:    JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`POST ${path} → ${res.status}: ${await res.text()}`)
+  return res.json() as Promise<T>
+}
+
+async function apiPut<T>(path: string, body: object, headers: Record<string, string> = {}): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body:    JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`PUT ${path} → ${res.status}: ${await res.text()}`)
   return res.json() as Promise<T>
 }
 
@@ -91,54 +115,9 @@ interface SimUser {
   emoji:        string
 }
 
-interface StartResult {
-  scannee:    SimUser
-  scanner:    SimUser
-  endsAt:     number
-  serverTime: number
-  label:      string
-}
+// ─── Encounter steps (one pair at a time) ───────────────────────────────────────
 
-// ─── Round-robin scheduling ───────────────────────────────────────────────────
-// Groups pairs so no user appears twice in the same round, preventing QR-token races.
-
-function buildRounds(users: SimUser[], maxEncounters: number): SimUser[][][] {
-  const allPairs: SimUser[][] = []
-  for (let i = 0; i < users.length; i++)
-    for (let j = i + 1; j < users.length; j++)
-      allPairs.push([users[i], users[j]])
-
-  for (let i = allPairs.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [allPairs[i], allPairs[j]] = [allPairs[j], allPairs[i]]
-  }
-
-  const rounds: SimUser[][][] = []
-  const remaining = allPairs.slice(0, maxEncounters)
-
-  while (remaining.length > 0) {
-    const round: SimUser[][] = []
-    const busy  = new Set<string>()
-    const carry: SimUser[][] = []
-
-    for (const pair of remaining) {
-      if (!busy.has(pair[0].publicId) && !busy.has(pair[1].publicId)) {
-        round.push(pair)
-        busy.add(pair[0].publicId)
-        busy.add(pair[1].publicId)
-      } else {
-        carry.push(pair)
-      }
-    }
-    rounds.push(round)
-    remaining.splice(0, remaining.length, ...carry)
-  }
-  return rounds
-}
-
-// ─── Encounter steps ──────────────────────────────────────────────────────────
-
-async function startEncounter(roomId: string, scannee: SimUser, scanner: SimUser, label: string): Promise<StartResult> {
+async function startEncounter(roomId: string, scannee: SimUser, scanner: SimUser) {
   const { token } = await apiPost<{ token: string }>(
     `/api/rooms/${roomId}/users/${scannee.publicId}/qr-token`,
     {},
@@ -150,56 +129,74 @@ async function startEncounter(roomId: string, scannee: SimUser, scanner: SimUser
     { 'x-private-token': scanner.privateToken },
   )
   if (start.action !== 'started') throw new Error(`unexpected action "${start.action}"`)
-  console.log(`  ${label} started   ${scannee.emoji} ${scannee.displayName} ↔ ${scanner.emoji} ${scanner.displayName}`)
-  return { scannee, scanner, endsAt: start.endsAt, serverTime: start.serverTime, label }
+  return { endsAt: start.endsAt, serverTime: start.serverTime }
 }
 
-async function confirmEncounter(roomId: string, r: StartResult): Promise<void> {
+async function confirmEncounter(roomId: string, scannee: SimUser, scanner: SimUser) {
   const { token } = await apiPost<{ token: string }>(
-    `/api/rooms/${roomId}/users/${r.scannee.publicId}/qr-token`,
+    `/api/rooms/${roomId}/users/${scannee.publicId}/qr-token`,
     {},
-    { 'x-private-token': r.scannee.privateToken },
+    { 'x-private-token': scannee.privateToken },
   )
   const confirm = await apiPost<{ action: string }>(
     `/api/rooms/${roomId}/scan`,
-    { scanneePublicId: r.scannee.publicId, qrToken: token },
-    { 'x-private-token': r.scanner.privateToken },
+    { scanneePublicId: scannee.publicId, qrToken: token },
+    { 'x-private-token': scanner.privateToken },
   )
   if (confirm.action !== 'confirmed') throw new Error(`unexpected action "${confirm.action}"`)
-  console.log(`  ${r.label} confirmed ${r.scannee.emoji} ${r.scannee.displayName} ↔ ${r.scanner.emoji} ${r.scanner.displayName}`)
+}
+
+// All unique pairs, shuffled, capped at maxEncounters.
+function buildPairs(users: SimUser[], maxEncounters: number): [SimUser, SimUser][] {
+  const pairs: [SimUser, SimUser][] = []
+  for (let i = 0; i < users.length; i++)
+    for (let j = i + 1; j < users.length; j++)
+      pairs.push([users[i], users[j]])
+
+  for (let i = pairs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[pairs[i], pairs[j]] = [pairs[j], pairs[i]]
+  }
+  return pairs.slice(0, maxEncounters)
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log('=== QRMeet Simulation ===')
-  console.log(`URL:   ${BASE_URL}`)
-  console.log(`Users: ${USER_COUNT}`)
+  console.log(`URL:       ${BASE_URL}`)
+  console.log(`Users:     ${USER_COUNT}`)
+  console.log(`Treasures: ${TREASURE_COUNT}`)
+
+  const adminToken = await hashPassword(args.password!)
+  const adminHeaders = { 'x-admin-token': adminToken }
 
   let roomId: string
   if (args.room) {
     roomId = args.room
     console.log(`\nRoom:  ${roomId} (existing)`)
   } else {
-    const adminPasswordHash = await hashPassword('simtest123')
     const { id } = await apiPost<{ id: string }>(
       '/api/rooms',
-      { name: ROOM_NAME, adminPassword: adminPasswordHash },
+      { name: ROOM_NAME, adminPassword: adminToken },
     )
     roomId = id
     console.log(`\nRoom:  ${roomId} (created)`)
   }
 
-  // Join users with distinct fake IPs to bypass the per-IP rate limit in local dev
+  // Each user supplies its own private token (also the join idempotency key), so a
+  // fresh random token per user yields a distinct account. A distinct fake IP is
+  // still passed so each user gets its own admin `network_tag`.
   console.log(`\nJoining ${USER_COUNT} users...`)
   const users: SimUser[] = []
   for (let i = 0; i < USER_COUNT; i++) {
     const fakeIp = `10.0.${Math.floor(i / 254)}.${(i % 254) + 1}`
+    const privateToken = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('')
     try {
       const u = await apiPost<{ publicId: string; privateToken: string }>(
         `/api/rooms/${roomId}/users`,
-        {},
-        { 'x-forwarded-for': fakeIp },
+        { privateToken },
+        { 'cf-connecting-ip': fakeIp },
       )
       const profile = await apiGet<{ displayName: string; emoji: string }>(
         `/api/rooms/${roomId}/users/${u.publicId}/score`,
@@ -218,67 +215,84 @@ async function main() {
     process.exit(1)
   }
 
-  const maxPairs      = (users.length * (users.length - 1)) / 2
-  const maxEncounters = args.encounters ? parseInt(args.encounters) : maxPairs
-  const rounds        = buildRounds(users, maxEncounters)
-  const totalPlanned  = rounds.reduce((s, r) => s + r.length, 0)
+  // ── Treasure hunt ──
+  if (TREASURE_COUNT > 0) {
+    console.log(`\nSetting up ${TREASURE_COUNT} treasure(s)...`)
+    try {
+      await apiPut(`/api/admin/rooms/${roomId}/settings`, { treasureHuntEnabled: true }, adminHeaders)
+      const treasureIds: string[] = []
+      for (let i = 0; i < TREASURE_COUNT; i++) {
+        const t = await apiPost<{ id: string }>(
+          `/api/admin/rooms/${roomId}/treasures`,
+          { label: `Treasure ${i + 1}` },
+          adminHeaders,
+        )
+        treasureIds.push(t.id)
+      }
 
-  console.log(`\nSimulating ${totalPlanned} encounter(s) across ${rounds.length} round(s)`)
-  console.log('(within a round all encounters run in parallel)\n')
-
-  let totalOk   = 0
-  let totalFail = 0
-
-  for (let ri = 0; ri < rounds.length; ri++) {
-    const round = rounds[ri]
-    console.log(`Round ${ri + 1}/${rounds.length} — ${round.length} encounter(s)`)
-
-    const startResults = await Promise.allSettled(
-      round.map((pair, pi) => startEncounter(roomId, pair[0], pair[1], `[R${ri + 1}/E${pi + 1}]`))
-    )
-
-    const started = startResults
-      .filter((r): r is PromiseFulfilledResult<StartResult> => r.status === 'fulfilled')
-      .map(r => r.value)
-
-    startResults
-      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-      .forEach((r, i) => console.error(`  [R${ri + 1}/E${i + 1}] start failed: ${r.reason}`))
-
-    if (started.length === 0) {
-      totalFail += round.length
-      continue
+      console.log('Every user claims every treasure...')
+      let claimed = 0
+      for (const user of users) {
+        for (const tid of treasureIds) {
+          const r = await apiPost<{ action: string }>(
+            `/api/rooms/${roomId}/treasures/${tid}/claim`,
+            {},
+            { 'x-private-token': user.privateToken },
+          )
+          if (r.action === 'claimed') claimed++
+        }
+      }
+      console.log(`Treasures claimed: ${claimed} (${TREASURE_COUNT} × ${users.length} users)`)
+    } catch (e) {
+      console.error(`Treasure setup failed (need the room's admin password via --password): ${e}`)
     }
-
-    // Wait until the last timer in this round expires (+3s buffer for Durable Object alarm)
-    const waitSec = Math.max(...started.map(r => r.endsAt - r.serverTime)) + 3
-    console.log(`  Waiting ${waitSec}s for encounter timer(s) to expire...`)
-    await sleep(waitSec * 1000)
-
-    const confirmResults = await Promise.allSettled(started.map(r => confirmEncounter(roomId, r)))
-    const roundOk   = confirmResults.filter(r => r.status === 'fulfilled').length
-    const roundFail = confirmResults.length - roundOk + (round.length - started.length)
-
-    confirmResults
-      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-      .forEach((r, i) => console.error(`  [R${ri + 1}/E${i + 1}] confirm failed: ${r.reason}`))
-
-    totalOk   += roundOk
-    totalFail += roundFail
   }
 
+  // ── Encounters (sequential: one pair at a time) ──
+  const maxPairs      = (users.length * (users.length - 1)) / 2
+  const maxEncounters = args.encounters ? parseInt(args.encounters) : maxPairs
+  const pairs         = buildPairs(users, maxEncounters)
+
+  console.log(`\nSimulating ${pairs.length} encounter(s), one at a time...\n`)
+
+  let totalOk = 0
+  let totalFail = 0
+
+  for (let i = 0; i < pairs.length; i++) {
+    const [scannee, scanner] = pairs[i]
+    const label = `[${i + 1}/${pairs.length}]`
+    try {
+      const { endsAt, serverTime } = await startEncounter(roomId, scannee, scanner)
+      console.log(`${label} started   ${scannee.emoji} ${scannee.displayName} ↔ ${scanner.emoji} ${scanner.displayName}`)
+
+      const waitSec = Math.max(1, endsAt - serverTime) + 2 // +2s for the Durable Object alarm
+      await sleep(waitSec * 1000)
+
+      await confirmEncounter(roomId, scannee, scanner)
+      console.log(`${label} confirmed`)
+      totalOk++
+    } catch (e) {
+      console.error(`${label} failed: ${e}`)
+      totalFail++
+    }
+  }
+
+  // ── Leaderboard ──
   console.log('\n=== Leaderboard ===')
   const board = await apiGet<{
-    scores:            { displayName: string; emoji: string; score: number }[]
+    scores: { display_name: string; emoji: string; score: number; meetings?: number; treasure_points?: number }[]
     totalParticipants: number
   }>(`/api/rooms/${roomId}/board/scores`)
 
   if (board.scores.length === 0) {
     console.log('  (no scores yet)')
   } else {
-    board.scores.forEach((s, i) =>
-      console.log(`  ${i + 1}. ${s.emoji} ${s.displayName.padEnd(28)} ${s.score} pt${s.score !== 1 ? 's' : ''}`)
-    )
+    board.scores.forEach((s, i) => {
+      const breakdown = TREASURE_COUNT > 0
+        ? `  (${s.meetings ?? 0} met, ${s.treasure_points ?? 0} treasure)`
+        : ''
+      console.log(`  ${i + 1}. ${s.emoji} ${s.display_name.padEnd(28)} ${s.score} pt${s.score !== 1 ? 's' : ''}${breakdown}`)
+    })
   }
 
   console.log(`\n  Total participants : ${board.totalParticipants}`)
@@ -290,7 +304,8 @@ async function main() {
 if (args.help) {
   console.log(`
 QRMeet simulation script
-Populates a room with fake users and drives encounters end-to-end.
+Populates a room with fake users, drives encounters sequentially, and optionally
+runs a treasure hunt.
 
 Usage:
   npx tsx scripts/simulate.ts [options]
@@ -301,32 +316,35 @@ Options:
                           default: http://localhost:8787
   --name <name>         Room name (used when creating a new room)
                           default: SimulationRoom
+  --password <pw>       Admin password (room creation + admin calls)
+                          default: simtest123
   --room <id>           Use an existing room instead of creating one
   --users <n>           Number of users to create and join
                           default: 10
   --encounters <n>      Number of encounters to simulate
                           default: all unique pairs (users*(users-1)/2)
+  --treasures <n>       Create n treasure QR codes and have every user claim them
+                          default: 0 (treasure hunt disabled)
   --help                Show this help message
 
 Examples:
-  # Create a room, join 10 users, simulate all possible encounters
+  # Create a room, join 10 users, run all encounters one at a time
   npm run simulate
 
-  # Use an existing room, add 6 users, run 5 encounters
-  npm run simulate -- --room abc123 --users 6 --encounters 5
+  # Smaller, faster run with a treasure hunt
+  npm run simulate -- --users 5 --encounters 4 --treasures 3
 
-  # Point at a remote server
-  npm run simulate -- --url https://qrmeet.example.com --name "Demo Day" --users 20
+  # Point at an existing room (pass its admin password for treasures)
+  npm run simulate -- --room abc123 --password hunter2 --treasures 2
 
 Notes:
-  - Encounters run in parallel rounds: within a round no user appears twice,
-    avoiding QR-token conflicts.
-  - Each round waits for the encounter timer to expire before confirming.
-    With the default 30 s timer, 10 users (9 rounds max) takes ~5 minutes.
-  - Distinct fake IPs are sent per user to bypass the per-IP join rate limit
-    in local dev (Wrangler sets cf-connecting-ip to 127.0.0.1 for all requests).
+  - Encounters are sequential: each is started, the script waits for its timer to
+    expire, then confirms it, before the next one. There are no parallel rounds.
+  - Total runtime ≈ encounters × (ENCOUNTER_DURATION_SECONDS + 2s). Set a low
+    duration in wrangler.toml when simulating many encounters.
+  - Distinct fake IPs are sent per user to bypass the per-IP join rate limit in
+    local dev (Wrangler sets cf-connecting-ip to 127.0.0.1 for all requests).
 `)
 } else {
   main().catch(err => console.error('\nFatal:', err))
 }
-

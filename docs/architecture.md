@@ -46,10 +46,11 @@ Cloudflare Worker (Hono)
 | Column | Type | Description |
 |---|---|---|
 | `public_id` | TEXT PK | 12-character ID embedded in QR codes |
-| `private_token` | TEXT UNIQUE | 32-character token stored only in `localStorage` |
+| `private_token` | TEXT UNIQUE | Client-generated bearer token (256-bit hex), stored only in `localStorage`. Also the join idempotency key (see `POST /users` in `api.md`) — the `UNIQUE` constraint backs `INSERT … ON CONFLICT(private_token)` so concurrent first-joins from one device resolve to a single account |
 | `room_id` | TEXT FK | Parent room |
 | `display_name` | TEXT | Editable on the ID card |
 | `emoji` | TEXT | Editable on the ID card |
+| `ip_hash` | TEXT | HMAC of the joining IP (salted per room). Surfaced as the admin `network_tag` for spotting bot/duplicate accounts — **not** used to deduplicate joins |
 | `created_at` | INTEGER | Unix timestamp |
 
 ### `encounters`
