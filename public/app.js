@@ -466,15 +466,12 @@ function qrmeet() {
     async refreshQrToken() {
       if (!this.me) return
 
-      // Reuse existing token from localStorage if available
-      const saved = storage.get('qrToken')
-      if (saved && !this._forceNewToken) {
-        this.qrToken = saved
-        this._renderQr()
-        return
-      }
-      this._forceNewToken = false
-
+      // Always (re)issue from the server — it is the source of truth for the
+      // token (stored in users.qr_token). We must NOT reuse a localStorage copy
+      // as authoritative: it can diverge from the server (e.g. the token was
+      // burned by a scan while our WebSocket was down, or a stale value from a
+      // previous deploy), which would render a QR the server rejects. A fresh
+      // round-trip on every render keeps the displayed QR and D1 in sync.
       const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users/${this.me.publicId}/qr-token`, {
         method: 'POST',
         headers: { 'x-private-token': this.me.privateToken },
@@ -485,15 +482,13 @@ function qrmeet() {
         return
       }
       this.qrToken = data.token
-      storage.set('qrToken', data.token)
       this._renderQr()
     },
 
+    // Kept as an alias: every refresh now issues a fresh server token, so there
+    // is no longer a "cached vs forced" distinction. Existing callers stay valid.
     forceRefreshQrToken() {
-      // Clear cached token so a fresh one is fetched from the server
-      storage.remove('qrToken')
-      this._forceNewToken = true
-      this.refreshQrToken()
+      return this.refreshQrToken()
     },
 
     _renderQr() {
