@@ -108,4 +108,47 @@ describe('scan / encounter lifecycle', () => {
     const { res } = await scan(roomId, a, b)
     expect(res.status).toBe(403)
   })
+
+  it('confirms after the timer even if the scannee token was never refreshed', async () => {
+    // Regression for the "legitimate confirmation scan fails" bug: the server
+    // burns the scannee's token at session start, and the client is supposed to
+    // re-issue it. If that refresh is missed (e.g. a dropped WebSocket), the pair
+    // already exists, so confirming must still succeed without a fresh token.
+    const { roomId } = await createRoom()
+    const [a, b] = [await joinUser(roomId), await joinUser(roomId)]
+    await scan(roomId, a, b)
+    await markTimerElapsed(roomId)
+
+    // Simulate the missed refresh: B's token stays burned (NULL) after start.
+    await env.DB.prepare('UPDATE users SET qr_token = NULL WHERE public_id = ?')
+      .bind(b.publicId).run()
+
+    // Confirm with a stale/bogus token — the existing encounter should be honoured.
+    const res = await fetchWorker(`${BASE}/api/rooms/${roomId}/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-private-token': a.privateToken },
+      body: JSON.stringify({ scanneePublicId: b.publicId, qrToken: 'stale-or-burned' }),
+    })
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.action).toBe('confirmed')
+
+    const sa = await getScore(roomId, a)
+    const sb = await getScore(roomId, b)
+    expect(sa.data.score).toBe(1)
+    expect(sb.data.score).toBe(1)
+  })
+
+  it('still rejects starting a new encounter with an invalid token', async () => {
+    // The token check must remain strict for *new* encounters even though it is
+    // now relaxed on the confirmation path.
+    const { roomId } = await createRoom()
+    const [a, b] = [await joinUser(roomId), await joinUser(roomId)]
+    const res = await fetchWorker(`${BASE}/api/rooms/${roomId}/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-private-token': a.privateToken },
+      body: JSON.stringify({ scanneePublicId: b.publicId, qrToken: 'bogus' }),
+    })
+    expect(res.status).toBe(400)
+  })
 })
