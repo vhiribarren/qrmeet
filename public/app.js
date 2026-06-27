@@ -394,7 +394,10 @@ function qrmeet() {
     async enterRoom() {
       await this.loadScore()
       this.page = 'card'
-      await this.refreshQrToken()
+      // Force a fresh token rather than trusting the cached one: the QR token is
+      // single-use and may have been burned by someone scanning us since we last
+      // had the app open, in which case a cached token would render a dead QR.
+      await this.forceRefreshQrToken()
       this.connectWs()
       history.replaceState({}, '', `/r/${this.roomId}`)
     },
@@ -466,24 +469,31 @@ function qrmeet() {
     async refreshQrToken() {
       if (!this.me) return
 
-      // Reuse existing token from localStorage if available
+      // Reuse the cached token only as a fast/offline path. A forced refresh
+      // always goes to the server, because the cached token may already have been
+      // burned by someone scanning us.
       const saved = storage.get('qrToken')
       if (saved && !this._forceNewToken) {
         this.qrToken = saved
         this._renderQr()
         return
       }
-      this._forceNewToken = false
 
       const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users/${this.me.publicId}/qr-token`, {
         method: 'POST',
         headers: { 'x-private-token': this.me.privateToken },
       })
       if (!ok) {
+        // Keep _forceNewToken set so the next call retries the server rather than
+        // falling back to a possibly-burned cached token, and schedule one retry
+        // so a transient failure doesn't leave a dead QR on screen.
         console.error('qr-token error:', data)
         this.showToast('QR error: ' + (data.error ?? 'unknown'))
+        clearTimeout(this._qrRetryTimer)
+        this._qrRetryTimer = setTimeout(() => this.refreshQrToken(), 3000)
         return
       }
+      this._forceNewToken = false
       this.qrToken = data.token
       storage.set('qrToken', data.token)
       this._renderQr()
@@ -690,13 +700,28 @@ function qrmeet() {
         return
       }
       try {
-        const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/scan`, {
+        const { ok, status, data } = await apiFetch(`/api/rooms/${this.roomId}/scan`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-private-token': this.me.privateToken },
           body: JSON.stringify({ scanneePublicId, qrToken }),
         })
 
         if (!ok) {
+          // Concurrent mutual scan: when both people scan each other at once, the
+          // request that loses the insert race gets back 409 "still in progress"
+          // even though this user is already in that very session (delivered over
+          // the WebSocket). A user can only have one running encounter (busy
+          // guard), so an active, unconfirmed session here is that session —
+          // surface it as success instead of a spurious error screen.
+          const inProgress = status === 409 && /progress/i.test(data.error || '')
+          const activeSession = this.session && !this.session.confirmed &&
+            (this.session.endsAt - Math.floor(Date.now() / 1000)) > 0
+          if (inProgress && activeSession) {
+            this.scanState = 'success'
+            history.replaceState({}, '', `/r/${this.roomId}`)
+            this.page = 'card'
+            return
+          }
           this.scanState = 'error'
           this.scanError = data.error || 'Scan failed'
           // Redirect to room after a delay so user isn't stuck on scan page
@@ -848,7 +873,7 @@ function qrmeet() {
       }
 
       if (msg.type === 'session_start') {
-        const wasNull = !this.session
+        const prevEncounterId = this.session?.encounterId
         // Calculate clock offset: server time vs local time
         const serverNow = msg.serverTime
         const localNow = Math.floor(Date.now() / 1000)
@@ -863,8 +888,15 @@ function qrmeet() {
         }
         this.startSessionTimer()
         this.loadScore()
-        // Refresh QR token so B can scan A again for confirmation
-        if (wasNull) this.forceRefreshQrToken()
+        // Refresh the QR token for every *new* encounter so this user can be
+        // scanned again — both to confirm this one and to start the next. We key
+        // on the encounter id rather than "was the session null", because after a
+        // timer elapses the previous session object lingers (it's only cleared on
+        // confirmation). Without this, a back-to-back scannee keeps showing a token
+        // the server already burned, and the next legitimate scan of them fails.
+        // Re-pushes of the *same* encounter (reconnect) and the scanner's own
+        // session (already refreshed over HTTP) keep the same id, so they skip it.
+        if (prevEncounterId !== msg.encounterId) this.forceRefreshQrToken()
       }
 
       if (msg.type === 'session_end') {

@@ -82,20 +82,18 @@ scan.post('/', async (c) => {
     return c.json({ error: 'User not found' }, 404)
   }
 
-  // Verify QR token (not burned yet — only burn if we're going to proceed).
-  // The token lives on the scannee's users row (strongly consistent in D1), so a
-  // freshly issued token is never read back stale the way it could be from KV.
-  if (!scannee.qr_token || scannee.qr_token !== body.qrToken) {
-    console.info('encounter.rejected', { room: roomId, reason: 'invalid_qr_token', scanner: scanner.public_id, scannee: scannee.public_id })
-    return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
-  }
-
   // Normalize pair order for UNIQUE constraint (always smaller id first)
   const [userA, userB] = [scanner.public_id, scannee.public_id].sort()
   const userARecord = userA === scanner.public_id ? scanner : scannee
   const userBRecord = userB === scanner.public_id ? scanner : scannee
 
-  // Check for existing encounter between them
+  // Resolve any existing encounter for this pair *before* validating the QR
+  // token. Confirming an already-created encounter is idempotent and must not
+  // depend on a fresh single-use token: the pair is already established, so
+  // requiring the scannee to have re-issued their token would make legitimate
+  // confirmation scans fail whenever that refresh was missed (e.g. a dropped
+  // WebSocket that never delivered session_start). The strict token check below
+  // still gates the creation of a *new* encounter.
   const existing = await c.env.DB.prepare(
     'SELECT * FROM encounters WHERE room_id = ? AND user_a_id = ? AND user_b_id = ?'
   ).bind(roomId, userA, userB).first<Encounter>()
@@ -122,6 +120,15 @@ scan.post('/', async (c) => {
     await confirmStub.confirmEncounter(existing.id)
     console.info('encounter.confirmed', { room: roomId, encounter: existing.id, userA, userB })
     return c.json({ action: 'confirmed', encounterId: existing.id })
+  }
+
+  // No existing encounter for this pair — starting a *new* one requires a valid,
+  // freshly issued single-use QR token. The token lives on the scannee's users
+  // row (strongly consistent in D1), so a freshly issued token is never read back
+  // stale the way it could be from KV. Only burn it once we're sure we'll proceed.
+  if (!scannee.qr_token || scannee.qr_token !== body.qrToken) {
+    console.info('encounter.rejected', { room: roomId, reason: 'invalid_qr_token', scanner: scanner.public_id, scannee: scannee.public_id })
+    return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
   }
 
   // Guard: a user can only hold one active conversation at a time. Block if the
