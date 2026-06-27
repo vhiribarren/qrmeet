@@ -701,10 +701,11 @@ function qrmeet() {
 
         if (data.action === 'started') {
           const offset = (data.serverTime || Math.floor(Date.now() / 1000)) - Math.floor(Date.now() / 1000)
-          // The question is delivered by the WebSocket session_start push, which the
-          // server sends *before* this HTTP response. If it already arrived for this
-          // encounter, keep it — otherwise this response would clobber it back to null
-          // and the question would only reappear after a manual refresh.
+          // The question may arrive two ways: the WebSocket session_start push and
+          // this HTTP response (which now carries it too). Prefer a question already
+          // set for this encounter by the WS push; otherwise fall back to the one in
+          // this response. The HTTP fallback matters because the scanner often has no
+          // live socket yet at this instant, so the push can be missed entirely.
           const knownQuestion = this.session?.encounterId === data.encounterId ? this.session.question : null
           this.session = {
             encounterId: data.encounterId,
@@ -712,7 +713,7 @@ function qrmeet() {
             partnerName: data.partner.displayName,
             partnerEmoji: data.partner.emoji,
             confirmed: false,
-            question: knownQuestion,
+            question: knownQuestion ?? data.question ?? null,
           }
           this.startSessionTimer()
           this.scanState = 'success'
