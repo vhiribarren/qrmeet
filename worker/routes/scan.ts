@@ -35,13 +35,8 @@ const scan = new Hono<{ Bindings: Env }>()
 // POST /api/rooms/:roomId/scan
 // Body: { scanneePublicId, qrToken }
 // Header: x-private-token (scanner's token)
-function roomIdFromUrl(url: string): string {
-  const m = url.match(/\/api\/rooms\/([^/]+)\//)
-  return m?.[1] ?? ''
-}
-
 scan.post('/', async (c) => {
-  const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
+  const roomId = c.req.param('roomId') as string
   const scannerToken = await extractPrivateToken(c.req.raw)
   if (!scannerToken) return c.json({ error: 'Unauthorized' }, 401)
 
