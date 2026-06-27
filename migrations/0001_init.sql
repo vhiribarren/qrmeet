@@ -15,7 +15,12 @@ CREATE TABLE users (
   display_name  TEXT    NOT NULL DEFAULT 'Anonymous',
   emoji         TEXT    NOT NULL DEFAULT '😊',
   ip_hash       TEXT,
-  created_at    INTEGER NOT NULL DEFAULT (unixepoch())
+  created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  -- Single-use scan token. Lives in D1 (not KV) for strong consistency: a freshly
+  -- issued token could read back stale from another edge location on KV, surfacing
+  -- "Invalid or expired QR code" on a just-refreshed QR. Overwritten on refresh,
+  -- set NULL when burned — single-use and constantly rotated, so no cleanup needed.
+  qr_token      TEXT
 );
 
 CREATE INDEX idx_users_room ON users(room_id);
