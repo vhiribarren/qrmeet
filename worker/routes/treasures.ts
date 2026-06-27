@@ -31,16 +31,11 @@ import { parseSettings } from '../lib/settings'
 
 const treasures = new Hono<{ Bindings: Env }>()
 
-function roomIdFromUrl(url: string): string {
-  const m = url.match(/\/api\/rooms\/([^/]+)\/treasures/)
-  return m?.[1] ?? ''
-}
-
 // POST /api/rooms/:roomId/treasures/:treasureId/claim
 // No body. Header: x-private-token (scanner's token).
 // Awards the treasure's points to the scanner once. No conversation is started.
 treasures.post('/:treasureId/claim', async (c) => {
-  const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
+  const roomId = c.req.param('roomId') as string
   const treasureId = c.req.param('treasureId') as string
 
   const scannerToken = await extractPrivateToken(c.req.raw)

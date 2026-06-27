@@ -36,16 +36,11 @@ function randomName(): string {
 
 const users = new Hono<{ Bindings: Env }>()
 
-function roomIdFromUrl(url: string): string {
-  const m = url.match(/\/api\/rooms\/([^/]+)\/users/)
-  return m?.[1] ?? ''
-}
-
 async function getAuthedUser(c: any): Promise<User | null> {
   const privateToken = await extractPrivateToken(c.req.raw)
   if (!privateToken) return null
   const uid = c.req.param('uid') as string
-  const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
+  const roomId = c.req.param('roomId') as string
   if (!uid || !roomId) return null
   return c.env.DB.prepare(
     'SELECT * FROM users WHERE public_id = ? AND private_token = ? AND room_id = ?'
@@ -77,7 +72,7 @@ users.post('/', async (c) => {
     return c.json({ error: 'Automated agents cannot join a room' }, 403)
   }
 
-  const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
+  const roomId = c.req.param('roomId') as string
   const room = await c.env.DB.prepare(
     'SELECT id, settings, ip_salt FROM rooms WHERE id = ? AND expires_at > ?'
   ).bind(roomId, Math.floor(Date.now() / 1000)).first<Pick<Room, 'id' | 'settings' | 'ip_salt'>>()
@@ -237,7 +232,7 @@ users.get('/:uid/score', async (c) => {
 // GET /api/rooms/:roomId/users/:uid/ws
 // All connections go through DurableRoom
 users.get('/:uid/ws', async (c) => {
-  const roomId = (c.req.param('roomId') as string | undefined) || roomIdFromUrl(c.req.url)
+  const roomId = c.req.param('roomId') as string
   const uid = c.req.param('uid') as string
   // Browsers cannot set custom headers on WebSocket connections, so the private
   // token is carried in the Sec-WebSocket-Protocol header as the two subprotocol
