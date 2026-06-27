@@ -694,12 +694,8 @@ function qrmeet() {
         if (!ok) {
           this.scanState = 'error'
           this.scanError = data.error || 'Scan failed'
-          // Redirect to room after a delay so user isn't stuck on scan page
-          setTimeout(() => {
-            history.replaceState({}, '', `/r/${this.roomId}`)
-            this.session = null
-            this.enterRoom()
-          }, 3000)
+          // Stay on the error screen — the user returns via the "Back to my card"
+          // button (backToCard()), never automatically.
           return
         }
 
@@ -739,11 +735,6 @@ function qrmeet() {
       } catch (e) {
         this.scanState = 'error'
         this.scanError = 'Network error. Please try again.'
-        setTimeout(() => {
-          history.replaceState({}, '', `/r/${this.roomId}`)
-          this.session = null
-          this.enterRoom()
-        }, 3000)
       }
     },
 
@@ -758,10 +749,7 @@ function qrmeet() {
         if (!ok) {
           this.scanState = 'error'
           this.scanError = data.error || 'Could not collect this treasure'
-          setTimeout(() => {
-            history.replaceState({}, '', `/r/${this.roomId}`)
-            this.enterRoom()
-          }, 3000)
+          // Stay on the error screen — return only via the "Back to my card" button.
           return
         }
 
@@ -784,10 +772,6 @@ function qrmeet() {
       } catch (e) {
         this.scanState = 'error'
         this.scanError = 'Network error. Please try again.'
-        setTimeout(() => {
-          history.replaceState({}, '', `/r/${this.roomId}`)
-          this.enterRoom()
-        }, 3000)
       }
     },
 
@@ -920,6 +904,16 @@ function qrmeet() {
     goTo(p) {
       this.page = p
       this.showEmojiPicker = false
+    },
+
+    // Return to the card from a scan/treasure error screen. Errors can fire before
+    // the room was ever prepared (cold scan/treasure deep link, where init only
+    // calls ensureUser()), so run the full enterRoom() setup — load score, (re)issue
+    // the QR token, connect the WebSocket, and fix the URL — rather than a bare page
+    // switch. Any active session is left untouched.
+    backToCard() {
+      this.showEmojiPicker = false
+      return this.enterRoom()
     },
 
     // ── Utilities ──
