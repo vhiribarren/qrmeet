@@ -26,6 +26,29 @@
 // add questions freely — there is no distinction between "default" and "custom"
 // once the room is created.
 export const DEFAULT_QUESTIONS: string[] = [
+  // Corporate — professional networking
+  'What does a typical day look like in your role?',
+  'What is the biggest challenge you are working on right now?',
+  'What is something you are particularly proud of recently?',
+  'What is the last thing you learned that surprised you?',
+  'What do you do outside of work that keeps you energised?',
+  'What advice would you give your younger self?',
+  'What book, podcast, or resource would you recommend right now?',
+  'What skill are you currently trying to develop?',
+  'How do you prefer to collaborate with others?',
+  'If you could change one thing about your industry, what would it be?',
+  'What is one goal you are focused on for the next few months?',
+  'What do people usually come to you for help with?',
+  'Are you a morning person or a night owl, and does it match your job?',
+  'How has remote or hybrid work changed the way you work?',
+  'What is a failure that turned into a valuable lesson?',
+  'Who or what has inspired you most in your career?',
+  'What tools or habits make you most productive?',
+  'Where do you see your field heading in the next five years?',
+  'What made you want to come to this event?',
+  'What kind of connections are you hoping to make today?',
+
+  // Fun — playful icebreakers
   'Do you think a hippo would beat a rhino in a fight?',
   'If you had one superpower, what would it be and how would you misuse it?',
   'What is the weirdest food combination you secretly enjoy?',
