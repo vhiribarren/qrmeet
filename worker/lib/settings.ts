@@ -50,7 +50,7 @@ export function parseSettings(raw: string | null | undefined): RoomSettings {
     questionsEnabled:         s.questionsEnabled         ?? true,
     encounterDurationSeconds: s.encounterDurationSeconds ?? null,
     maxParticipants:          s.maxParticipants          ?? null,
-    treasureHuntEnabled:      s.treasureHuntEnabled      ?? false,
+    treasureHuntEnabled:      s.treasureHuntEnabled      ?? true,
     treasureDefaultPoints:    s.treasureDefaultPoints    ?? 3,
   }
 }

@@ -294,7 +294,7 @@ Fetch current room settings.
   "encounterDurationIsDefault": true,
   "maxParticipants": 100,
   "maxParticipantsIsDefault": true,
-  "treasureHuntEnabled": false,
+  "treasureHuntEnabled": true,
   "treasureDefaultPoints": 3,
   "roomTtlDays": 7
 }
