@@ -19,6 +19,10 @@ describe('scan / encounter lifecycle', () => {
     expect(res.status).toBe(200)
     expect(data.action).toBe('started')
     expect(data.partner.publicId).toBe(b.publicId)
+    // The scanner's own conversation question rides on the HTTP response (not only
+    // the WebSocket push), so a scanner with no live socket still gets one.
+    expect(typeof data.question).toBe('string')
+    expect(data.question.length).toBeGreaterThan(0)
   })
 
   it('rejects scanning yourself', async () => {

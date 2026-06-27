@@ -28,7 +28,7 @@ const PREFIX = 'qrmeet.'
 // Admin credentials are intentionally NOT here — they live in the independent
 // admin keychain below, so resetting the game never logs the organiser out of
 // their rooms (and vice-versa).
-const SESSION_KEYS = ['publicId', 'privateToken', 'roomId', 'displayName', 'emoji', 'qrToken']
+const SESSION_KEYS = ['publicId', 'privateToken', 'roomId', 'displayName', 'emoji']
 
 export const storage = {
   get:    (key)        => localStorage.getItem(PREFIX + key),

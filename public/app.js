@@ -469,41 +469,33 @@ function qrmeet() {
     async refreshQrToken() {
       if (!this.me) return
 
-      // Reuse the cached token only as a fast/offline path. A forced refresh
-      // always goes to the server, because the cached token may already have been
-      // burned by someone scanning us.
-      const saved = storage.get('qrToken')
-      if (saved && !this._forceNewToken) {
-        this.qrToken = saved
-        this._renderQr()
-        return
-      }
-
+      // Always (re)issue from the server — it is the source of truth for the
+      // token (stored in users.qr_token). We must NOT reuse a localStorage copy
+      // as authoritative: it can diverge from the server (e.g. the token was
+      // burned by a scan while our WebSocket was down, or a stale value from a
+      // previous deploy), which would render a QR the server rejects. A fresh
+      // round-trip on every render keeps the displayed QR and D1 in sync.
       const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users/${this.me.publicId}/qr-token`, {
         method: 'POST',
         headers: { 'x-private-token': this.me.privateToken },
       })
       if (!ok) {
-        // Keep _forceNewToken set so the next call retries the server rather than
-        // falling back to a possibly-burned cached token, and schedule one retry
-        // so a transient failure doesn't leave a dead QR on screen.
+        // A transient failure would otherwise leave a dead/stale QR on screen;
+        // retry shortly so the displayed token re-syncs with the server.
         console.error('qr-token error:', data)
         this.showToast('QR error: ' + (data.error ?? 'unknown'))
         clearTimeout(this._qrRetryTimer)
         this._qrRetryTimer = setTimeout(() => this.refreshQrToken(), 3000)
         return
       }
-      this._forceNewToken = false
       this.qrToken = data.token
-      storage.set('qrToken', data.token)
       this._renderQr()
     },
 
+    // Kept as an alias: every refresh now issues a fresh server token, so there
+    // is no longer a "cached vs forced" distinction. Existing callers stay valid.
     forceRefreshQrToken() {
-      // Clear cached token so a fresh one is fetched from the server
-      storage.remove('qrToken')
-      this._forceNewToken = true
-      this.refreshQrToken()
+      return this.refreshQrToken()
     },
 
     _renderQr() {
@@ -724,21 +716,18 @@ function qrmeet() {
           }
           this.scanState = 'error'
           this.scanError = data.error || 'Scan failed'
-          // Redirect to room after a delay so user isn't stuck on scan page
-          setTimeout(() => {
-            history.replaceState({}, '', `/r/${this.roomId}`)
-            this.session = null
-            this.enterRoom()
-          }, 3000)
+          // Stay on the error screen — the user returns via the "Back to my card"
+          // button (backToCard()), never automatically.
           return
         }
 
         if (data.action === 'started') {
           const offset = (data.serverTime || Math.floor(Date.now() / 1000)) - Math.floor(Date.now() / 1000)
-          // The question is delivered by the WebSocket session_start push, which the
-          // server sends *before* this HTTP response. If it already arrived for this
-          // encounter, keep it — otherwise this response would clobber it back to null
-          // and the question would only reappear after a manual refresh.
+          // The question may arrive two ways: the WebSocket session_start push and
+          // this HTTP response (which now carries it too). Prefer a question already
+          // set for this encounter by the WS push; otherwise fall back to the one in
+          // this response. The HTTP fallback matters because the scanner often has no
+          // live socket yet at this instant, so the push can be missed entirely.
           const knownQuestion = this.session?.encounterId === data.encounterId ? this.session.question : null
           this.session = {
             encounterId: data.encounterId,
@@ -746,7 +735,7 @@ function qrmeet() {
             partnerName: data.partner.displayName,
             partnerEmoji: data.partner.emoji,
             confirmed: false,
-            question: knownQuestion,
+            question: knownQuestion ?? data.question ?? null,
           }
           this.startSessionTimer()
           this.scanState = 'success'
@@ -769,11 +758,6 @@ function qrmeet() {
       } catch (e) {
         this.scanState = 'error'
         this.scanError = 'Network error. Please try again.'
-        setTimeout(() => {
-          history.replaceState({}, '', `/r/${this.roomId}`)
-          this.session = null
-          this.enterRoom()
-        }, 3000)
       }
     },
 
@@ -788,10 +772,7 @@ function qrmeet() {
         if (!ok) {
           this.scanState = 'error'
           this.scanError = data.error || 'Could not collect this treasure'
-          setTimeout(() => {
-            history.replaceState({}, '', `/r/${this.roomId}`)
-            this.enterRoom()
-          }, 3000)
+          // Stay on the error screen — return only via the "Back to my card" button.
           return
         }
 
@@ -814,10 +795,6 @@ function qrmeet() {
       } catch (e) {
         this.scanState = 'error'
         this.scanError = 'Network error. Please try again.'
-        setTimeout(() => {
-          history.replaceState({}, '', `/r/${this.roomId}`)
-          this.enterRoom()
-        }, 3000)
       }
     },
 
@@ -957,6 +934,16 @@ function qrmeet() {
     goTo(p) {
       this.page = p
       this.showEmojiPicker = false
+    },
+
+    // Return to the card from a scan/treasure error screen. Errors can fire before
+    // the room was ever prepared (cold scan/treasure deep link, where init only
+    // calls ensureUser()), so run the full enterRoom() setup — load score, (re)issue
+    // the QR token, connect the WebSocket, and fix the URL — rather than a bare page
+    // switch. Any active session is left untouched.
+    backToCard() {
+      this.showEmojiPicker = false
+      return this.enterRoom()
     },
 
     // ── Utilities ──

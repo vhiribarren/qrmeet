@@ -156,7 +156,7 @@ The server:
 2. Verifies the scanner's identity via `privateToken`.
 3. Verifies the QR token against the scannee's `users.qr_token` in D1 (the token is **not burned** if the scan would be rejected).
 4. Checks whether an open encounter already exists between the pair:
-   - **No encounter** → checks the busy guard below, then burns token, creates encounter row, picks two random questions from the room's pool (one per participant), notifies `DurableRoom`, returns `started`. If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
+   - **No encounter** → checks the busy guard below, then burns token, creates encounter row, picks two random questions from the room's pool (one per participant), notifies `DurableRoom`, returns `started` (the response carries the scanner's own `question`). If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
    - **Open encounter, `notified_at` not set** → session still in progress, returns `409`.
    - **Open encounter, `notified_at` set** → burns token, marks encounter as `counted = 1`, notifies `DurableRoom`, returns `confirmed`.
    - **Counted encounter** → returns `409`.
@@ -170,6 +170,7 @@ The server:
   "encounterId": "...",
   "endsAt": 1234567890,
   "serverTime": 1234567890,
+  "question": "What brought you to this event?",
   "partner": { "publicId": "...", "displayName": "Bob", "emoji": "😎" }
 }
 ```
@@ -294,7 +295,7 @@ Fetch current room settings.
   "encounterDurationIsDefault": true,
   "maxParticipants": 100,
   "maxParticipantsIsDefault": true,
-  "treasureHuntEnabled": false,
+  "treasureHuntEnabled": true,
   "treasureDefaultPoints": 3,
   "roomTtlDays": 7
 }
@@ -471,4 +472,4 @@ The connection is proxied to the room's `DurableRoom` instance. The user stays c
 | `session_confirmed` | Meeting confirmed via second scan | `encounterId` |
 | `board_update` | Board viewer: triggered on user join or confirmed encounter | — |
 
-`question` in `session_start` is a randomly selected conversation prompt from the room's question pool. Each participant receives a different question. Empty string when questions are disabled for the room (`questionsEnabled: false`).
+`question` in `session_start` is a randomly selected conversation prompt from the room's question pool. Each participant receives a different question. Empty string when questions are disabled for the room (`questionsEnabled: false`). The **scanner** also receives their question in the `POST /scan` HTTP response, since they often have no live WebSocket at the moment the encounter is created (a cold scan deep-link connects the socket only afterwards) and could otherwise miss the push; the scannee, who is already on their card, gets it from the `session_start` push.

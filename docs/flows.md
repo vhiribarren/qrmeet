@@ -169,21 +169,18 @@ Contrast with the encounter flow above: a treasure claim is a single one-shot aw
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Generated : POST /qr-token
+    [*] --> Issued : POST /qr-token
 
-    Generated --> Cached : Stored in users.qr_token (D1) + client localStorage
-
-    Cached --> Displayed : QR code rendered on card
+    Issued --> Displayed : Stored in users.qr_token (D1), QR rendered on card
 
     Displayed --> Consumed : Successful scan (started or confirmed)
-    note right of Consumed : qr_token set NULL in D1, cleared from localStorage
+    note right of Consumed : qr_token set NULL in D1
 
-    Displayed --> Displayed : Page refresh (reuses localStorage)
+    Displayed --> Issued : Page load or refresh (always re-issues from server)
 
     Consumed --> [*]
 
-    Consumed --> Regenerated : forceRefreshQrToken()
-    Regenerated --> Cached
+    Consumed --> Issued : token_refresh / session event (forceRefreshQrToken)
 ```
 
 ---

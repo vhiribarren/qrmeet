@@ -220,11 +220,19 @@ scan.post('/', async (c) => {
   })
   console.info('encounter.started', { room: roomId, encounter: encId, userA, userB, endsAt: now + duration })
 
+  // Return the scanner's own question in the HTTP response too. The session_start
+  // WebSocket push carries it as well, but the scanner often has no live socket at
+  // this instant (a cold scan deep-link connects the WS only after this response),
+  // so the push can be missed — leaving the scanner with no question while their
+  // partner has one. The synchronous response is the reliable channel for them.
+  const scannerQuestion = scanner.public_id === userA ? questionA : questionB
+
   return c.json({
     action: 'started',
     encounterId: encId,
     endsAt: now + duration,
     serverTime: now,
+    question: scannerQuestion,
     partner: {
       publicId: scannee.public_id,
       displayName: scannee.display_name,

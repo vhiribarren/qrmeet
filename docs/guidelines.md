@@ -52,9 +52,8 @@
 
 ## GitHub commits
 
-- **Conventional Commits messages.** [Conventional
-  Commits](https://www.conventionalcommits.org/en/v1.0.0/) should be used as
-  much as possible as common message commit practice.
+- **Scoped Commits messages.** [Scoped Commits](https://scopedcommits.com/)
+  should be used as much as possible as common message commit practice.
 
 
 ## Always
