@@ -23,7 +23,7 @@ Backend server:
 6. A scoreboard shows each participant their own total and the list of people they've met.
 7. The organiser can view a full leaderboard and an interactive encounter graph at `/r/{roomId}/board`.
 
-**Treasure Hunt mode (optional).** The organiser can enable a treasure hunt for a room and print special QR codes to place around the venue. Anyone scanning one instantly earns points (default 3, configurable per code) — no conversation starts, and each person can collect a given treasure only once. These points add to the same leaderboard. Codes can be added, enabled/disabled, deleted, and re-printed from the admin dashboard's Treasure tab.
+**Treasure Hunt mode (on by default, can be disabled).** Each room lets the organiser print special QR codes to place around the venue. Anyone scanning one instantly earns points (default 3, configurable per code) — no conversation starts, and each person can collect a given treasure only once. These points add to the same leaderboard. Codes can be added, enabled/disabled, deleted, and re-printed from the admin dashboard's Treasure tab.
 
 ### Security model
 

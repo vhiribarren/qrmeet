@@ -9,20 +9,20 @@ describe('parseSettings', () => {
       questionsEnabled: true,
       encounterDurationSeconds: null,
       maxParticipants: null,
-      treasureHuntEnabled: false,
+      treasureHuntEnabled: true,
       treasureDefaultPoints: 3,
     })
   })
 
   it('tolerates null and invalid JSON', () => {
-    expect(parseSettings(null).treasureHuntEnabled).toBe(false)
+    expect(parseSettings(null).treasureHuntEnabled).toBe(true)
     expect(parseSettings(undefined).treasureDefaultPoints).toBe(3)
     expect(parseSettings('not json').isOpen).toBe(true)
   })
 
   it('preserves provided values', () => {
-    const s = parseSettings(JSON.stringify({ treasureHuntEnabled: true, treasureDefaultPoints: 10, isOpen: false }))
-    expect(s.treasureHuntEnabled).toBe(true)
+    const s = parseSettings(JSON.stringify({ treasureHuntEnabled: false, treasureDefaultPoints: 10, isOpen: false }))
+    expect(s.treasureHuntEnabled).toBe(false)
     expect(s.treasureDefaultPoints).toBe(10)
     expect(s.isOpen).toBe(false)
   })
@@ -35,7 +35,7 @@ describe('resolveSettings', () => {
     const r = resolveSettings(parseSettings('{}'), env)
     expect(r.encounterDurationSeconds).toBe(42)
     expect(r.maxParticipants).toBe(99)
-    expect(r.treasureHuntEnabled).toBe(false)
+    expect(r.treasureHuntEnabled).toBe(true)
     expect(r.treasureDefaultPoints).toBe(3)
   })
 

@@ -102,7 +102,7 @@ A `UNIQUE(treasure_id, user_id)` constraint enforces **one claim per player per 
 
 **Unified scoring.** A user's score is `COUNT(counted encounters) + SUM(treasure_scans.points)`, computed via a correlated subquery in the board, admin, and user score endpoints. The admin dashboard's "Meetings" stat uses the encounter-only count so treasure points don't inflate it.
 
-**Treasure mode settings** live in the `rooms.settings` JSON blob (see `worker/lib/settings.ts`): `treasureHuntEnabled` (default `false`) and `treasureDefaultPoints` (default `3`). No schema migration is needed to add settings.
+**Treasure mode settings** live in the `rooms.settings` JSON blob (see `worker/lib/settings.ts`): `treasureHuntEnabled` (default `true`) and `treasureDefaultPoints` (default `3`). No schema migration is needed to add settings.
 
 ---
 

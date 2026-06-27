@@ -22,7 +22,7 @@ describe('admin settings', () => {
     const { roomId, adminToken } = await createRoom()
     const { data } = await admin(roomId, adminToken).get('/settings')
     expect(data).toMatchObject({
-      treasureHuntEnabled: false,
+      treasureHuntEnabled: true,
       treasureDefaultPoints: 3,
       roomTtlDays: 7,
     })
