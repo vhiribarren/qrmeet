@@ -484,6 +484,20 @@ emoji-picker {
 }
 .tabs__btn--active { color: var(--primary); border-bottom-color: var(--primary); }
 
+/* Admin has 6 tabs in a single narrow column; on small screens the underline
+   strip crams the labels, so lay them out as a 3×2 pill grid instead. */
+@media (max-width: 640px) {
+  .admin-wrap .tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    border-bottom: none; margin-bottom: 16px;
+  }
+  .admin-wrap .tabs__btn {
+    padding: 10px 8px; border-radius: 10px; border-bottom: none; margin-bottom: 0;
+    background: var(--surface); font-size: 14px;
+  }
+  .admin-wrap .tabs__btn--active { background: rgba(99,102,241,0.1); color: var(--primary); }
+}
+
 .leaderboard__empty { text-align: center; color: var(--text-muted); padding: 40px; }
 .leaderboard__note { text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 16px; }
 
