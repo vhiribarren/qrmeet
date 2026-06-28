@@ -171,11 +171,30 @@ function qrmeet() {
         }
       })
 
+      // Single chokepoint for the live socket. Two things decide the connection:
+      // the current page and the user identity (roomId + me). A normal entry
+      // changes `page` (landing/scan -> card); switching rooms keeps `page` on
+      // 'card' but swaps `me`/`roomId`. So we react to BOTH, and connect only on
+      // an in-room page. This covers every entry path at once — resume, join, scan
+      // (started/confirmed/in-progress), treasure, room switch, and tab nav —
+      // instead of a connectWs() call per branch that is easy to forget.
+      // connectWs() is idempotent (no-op while connecting or open, bails until
+      // me/roomId exist), so calling it on any of these is cheap.
+      const ensureSocket = () => {
+        if (this.page === 'card' || this.page === 'score' || this.page === 'about') this.connectWs()
+      }
       this.$watch('page', (val) => {
+        ensureSocket()
         if (val === 'card' && (this.installPromptEvent || this.isIosInstallable) && !storage.get('installBannerDismissed')) {
           this.showInstallBanner = true
         }
       })
+      // Reconnect when the identity changes under a stable page — the room-switch
+      // case (card A -> card B), where `page` never transitions so the page watcher
+      // alone would leave the new room without a socket. performSwitchRoom() closes
+      // the old socket and nulls `me` (ensureSocket no-ops on the null), then
+      // joinRoom() sets the new `me` and this fires connectWs() for the new room.
+      this.$watch('me', ensureSocket)
 
       // Check URL for scan or room
       const path = location.pathname
@@ -403,12 +422,11 @@ function qrmeet() {
 
     async enterRoom() {
       await this.loadScore()
-      this.page = 'card'
+      this.page = 'card' // the page watcher opens the live socket
       // Force a fresh token rather than trusting the cached one: the QR token is
       // single-use and may have been burned by someone scanning us since we last
       // had the app open, in which case a cached token would render a dead QR.
       await this.refreshQrToken()
-      this.connectWs()
       history.replaceState({}, '', `/r/${this.roomId}`)
     },
 
@@ -748,11 +766,10 @@ function qrmeet() {
           this.startSessionTimer()
           this.scanState = 'success'
           if (navigator.vibrate) navigator.vibrate(15)
-          this.connectWs()
           // Redirect to room URL so the user lands in the app
           history.replaceState({}, '', `/r/${this.roomId}`)
           await this.refreshQrToken()
-          this.page = 'card'
+          this.page = 'card' // the page watcher opens the live socket
         } else if (data.action === 'confirmed') {
           this.scanState = 'confirmed'
           if (navigator.vibrate) navigator.vibrate([10, 60, 20])
@@ -761,7 +778,7 @@ function qrmeet() {
           await this.refreshQrToken()
           // Redirect to room URL
           history.replaceState({}, '', `/r/${this.roomId}`)
-          this.page = 'card'
+          this.page = 'card' // the page watcher opens the live socket
         }
       } catch (e) {
         this.scanState = 'error'
@@ -795,11 +812,12 @@ function qrmeet() {
         }
         history.replaceState({}, '', `/r/${this.roomId}`)
         // The player has now entered the room (possibly via a fresh auto-join from
-        // the treasure link). Prepare the card just like enterRoom()/doScan() do, so
-        // "Back to my card" shows a working personal QR without a manual refresh.
+        // the treasure link). Prepare the card so "Back to my card" shows a working
+        // personal QR without a manual refresh. The award screen itself stays on the
+        // scan page (no QR shown, nothing to receive), so the live socket is opened
+        // by the page watcher when the user taps "Back to my card".
         await this.loadScore()
         await this.refreshQrToken()
-        this.connectWs()
       } catch (e) {
         this.scanState = 'error'
         this.scanError = 'Network error. Please try again.'
