@@ -238,6 +238,20 @@ The admin password is hashed client-side (SHA-256 via Web Crypto) before being s
 - A leaked database reveals only a hash-of-hash, not the original password.
 - `localStorage` holds the first hash (enough to authenticate), never the plaintext.
 
+### Bearer tokens over session cookies
+
+Auth is stateless bearer tokens, never cookies. The player `privateToken` and the admin credential travel in explicit headers (`x-private-token`, `x-admin-token`; the WebSocket handshake passes the token as the second `Sec-WebSocket-Protocol` value because browsers can't set headers on a WebSocket). They live in `localStorage` / the admin keychain, not in a `Set-Cookie` jar, and the server keeps **no** session table — a token is matched directly against `users.private_token` / `rooms.admin_token_hash`.
+
+The deliberate trade-off vs. a server-managed `HttpOnly` cookie:
+
+- **Given up — XSS resistance.** A token in `localStorage` is readable by any injected script; an `HttpOnly` cookie is not. Accepted: the protected asset is a player identity in an ephemeral game room (low value), the front-end ships no third-party scripts, and a CSP is enforced on every HTML response.
+- **Kept — CSRF immunity for free.** A custom header can't be forged by a cross-site request, and the browser never attaches it automatically, so every state-changing endpoint (`scan`, treasure claim, profile, all admin routes) is CSRF-proof with no `SameSite`/origin/token machinery. A cookie sent automatically would reintroduce that surface — e.g. a third-party page could silently fire `DELETE …/rooms/:id` with the organiser's auto-attached credential. (Note: a victim *clicking a link* and acting under their own identity is plain navigation, not CSRF — that is unaffected either way.)
+- **Kept — trivial multi-identity.** One device can be a player in one room and admin of several at once. Header tokens are just values chosen per request; a domain-scoped cookie would need per-room naming or a server-side session pivot.
+- **Kept — client-owned join idempotency.** The client generates `privateToken` before joining, so `POST /users` is idempotent via the `UNIQUE(private_token)` constraint (see `api.md`). A server-issued cookie identity would need a separate idempotency key.
+- **Kept — zero session state.** Nothing to expire, rotate, or garbage-collect; the credential *is* the identity (admin: the keychain stores the hashed password, so any device re-authenticates with code + password — no global account).
+
+> If XSS resistance ever outweighs these, the admin credential (controls room settings and deletion) is the higher-value target and the better first candidate for an `HttpOnly` cookie — not the player token.
+
 ### Durable Objects for encounter timers
 
 Encounter timers require a server-side alarm that fires reliably after N seconds, even if no client is connected. D1 (SQLite) is stateless and cannot self-schedule work. Durable Objects provide both persistent state and the `alarm()` primitive, making them the natural fit. Each room gets one DO instance, so timers are isolated per room and scale independently.
