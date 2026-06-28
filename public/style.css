@@ -646,6 +646,27 @@ emoji-picker {
   /* Bigger QR so it scans from across the room; pixelated keeps it crisp upscaled */
   .join-tab { padding-top: 48px; }
   .qr-box img { width: 300px; height: 300px; image-rendering: pixelated; }
+
+  /* Admin dashboard mirrors the board: full-width header on top, stats + the
+     vertical tab menu in a sticky left sidebar, active tab content on the
+     right. The shared .stat-cards / .tabs rules above already switch those to
+     their vertical sidebar form, so here we only need the grid container. */
+  .admin-wrap {
+    max-width: 1100px;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-areas:
+      "header header"
+      "side   main";
+    column-gap: 32px; row-gap: 24px;
+    align-items: start;
+  }
+  .admin-header { grid-area: header; margin-bottom: 0; }
+  .admin-side {
+    grid-area: side; position: sticky; top: 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .admin-main { grid-area: main; min-width: 0; }
 }
 
 .network-tag {
