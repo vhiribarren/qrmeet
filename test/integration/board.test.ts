@@ -19,8 +19,8 @@ describe('public board', () => {
     const rowA = board.scores.find((s: any) => s.public_id === a.publicId)
     const rowB = board.scores.find((s: any) => s.public_id === b.publicId)
 
-    expect(rowA).toMatchObject({ score: 4, meetings: 1, treasure_points: 3 })
-    expect(rowB).toMatchObject({ score: 1, meetings: 1, treasure_points: 0 })
+    expect(rowA).toMatchObject({ score: 4, meetings: 1, treasures: 1, treasure_points: 3 })
+    expect(rowB).toMatchObject({ score: 1, meetings: 1, treasures: 0, treasure_points: 0 })
     expect(board.totalParticipants).toBe(2)
   })
 

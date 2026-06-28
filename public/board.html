@@ -44,8 +44,13 @@ SOFTWARE.
   <div x-data="boardApp" x-cloak>
     <div class="board-wrap">
       <div class="board-header">
-        <h1>📊 Leaderboard</h1>
-        <p class="board-header__sub" x-text="roomName || roomId"></p>
+        <div class="board-header__row">
+          <img class="board-header__logo" src="/icon.svg" alt="QRMeet logo">
+          <div class="board-header__text">
+            <h1>Leaderboard</h1>
+            <p class="board-header__sub" x-text="roomName || roomId"></p>
+          </div>
+        </div>
         <p class="board-header__expiry" x-show="countdown" x-text="countdown"></p>
       </div>
 
@@ -74,33 +79,52 @@ SOFTWARE.
 
       <!-- Leaderboard (top N) Tab -->
       <div x-show="tab === 'top10'">
-        <table class="leaderboard">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Participant</th>
-              <th x-text="hasTreasures ? 'Total' : 'Score'"></th>
-              <th x-show="hasTreasures" title="Meetings (confirmed conversations)">👥</th>
-              <th x-show="hasTreasures" title="Treasure points">🏆</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="(user, i) in scores" :key="user.public_id">
-              <tr>
-                <td x-text="i + 1"></td>
-                <td>
-                  <div class="participant">
-                    <span class="participant__emoji" x-text="user.emoji"></span>
-                    <span x-text="user.display_name"></span>
-                  </div>
-                </td>
-                <td class="leaderboard__total" x-text="user.score"></td>
-                <td x-show="hasTreasures" x-text="user.meetings"></td>
-                <td x-show="hasTreasures" x-text="user.treasure_points"></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+
+        <!-- Podium: top 3 -->
+        <div class="podium" x-show="topThree.length > 0">
+          <template x-for="(user, i) in topThree" :key="user.public_id">
+            <div class="podium__place" :class="'podium__place--rank' + (i + 1)">
+              <div class="podium__avatar" x-text="user.emoji"></div>
+              <div class="podium__name" x-text="user.display_name"></div>
+              <div class="podium__meta" x-show="hasTreasures">
+                <span x-text="'👥 ' + user.meetings"></span>
+                <span x-text="'🏆 ' + user.treasures"></span>
+              </div>
+              <div class="podium__pedestal">
+                <span class="podium__medal" x-text="['🥇','🥈','🥉'][i]"></span>
+                <span class="podium__score" x-text="user.score"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Remaining ranks: 4th and below, with relative score bars -->
+        <div class="rank-list" x-show="rest.length > 0">
+          <!-- Legend: explains the stat columns (only when the treasure hunt is in play) -->
+          <div class="rank-legend" x-show="hasTreasures">
+            <span class="rank-legend__col" title="Meetings (confirmed conversations)">👥</span>
+            <span class="rank-legend__col" title="Treasures found">🏆</span>
+            <span class="rank-legend__col rank-legend__col--total">Total</span>
+          </div>
+          <template x-for="(user, i) in rest" :key="user.public_id">
+            <div class="rank-row">
+              <span class="rank-row__num" x-text="i + 4"></span>
+              <span class="rank-row__emoji" x-text="user.emoji"></span>
+              <div class="rank-row__body">
+                <span class="rank-row__name" x-text="user.display_name"></span>
+                <div class="rank-row__bar">
+                  <div class="rank-row__bar-fill" :style="'width:' + barWidth(user.score) + '%'"></div>
+                </div>
+              </div>
+              <div class="rank-row__stats">
+                <span class="rank-row__col" x-show="hasTreasures" x-text="user.meetings"></span>
+                <span class="rank-row__col" x-show="hasTreasures" x-text="user.treasures"></span>
+                <span class="rank-row__col rank-row__col--total" x-text="user.score"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+
         <p class="leaderboard__empty" x-show="scores.length === 0">No participants yet.</p>
         <p class="leaderboard__note" x-show="totalParticipants > scores.length" x-text="'Showing top ' + scores.length + ' of ' + totalParticipants + ' participants'"></p>
       </div>

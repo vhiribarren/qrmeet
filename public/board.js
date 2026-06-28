@@ -144,6 +144,21 @@ function boardApp() {
       return this.scores.some((u) => (u.treasure_points || 0) > 0)
     },
 
+    // Top 3 fill the podium; everyone from 4th down goes in the bar list.
+    get topThree() {
+      return this.scores.slice(0, 3)
+    },
+    get rest() {
+      return this.scores.slice(3)
+    },
+
+    // Bar length for a rank-list row, relative to the leader's score.
+    // Clamped to a visible minimum so even low scores show a sliver.
+    barWidth(score) {
+      if (this.topScore <= 0) return 0
+      return Math.max(6, Math.round((score / this.topScore) * 100))
+    },
+
     async loadGraph() {
       const res = await fetch(`/api/rooms/${this.roomId}/board/graph`)
       if (!res.ok) return
