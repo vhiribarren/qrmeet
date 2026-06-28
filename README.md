@@ -119,7 +119,7 @@ The Durable Object (`DurableRoom`) is registered automatically via the `[[migrat
 | `npm run db:migrate -- --remote` | Apply D1 migrations on production |
 | `npm test` | Run the Vitest suite (unit + Workers integration tests) |
 | `npm run test:watch` | Run the test suite in watch mode |
-| `npm run simulate` | Simulate users and encounters against a running instance |
+| `npm run simulate -- --create-room` | Simulate users and encounters against a running instance (use `--room <id>` to target an existing room) |
 
 ## Further reading
 

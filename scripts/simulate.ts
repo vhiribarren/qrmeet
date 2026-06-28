@@ -35,14 +35,19 @@
  * Usage:
  *   npx tsx scripts/simulate.ts [options]
  *
+ * You must say which room to target: either join an existing one with --room <id>,
+ * or explicitly create a fresh one with --create-room. Requiring an explicit choice
+ * guards against accidentally creating a room on a real (e.g. prod) server.
+ *
  * Options:
+ *   --room        Join this existing room id
+ *   --create-room Create a fresh room (mutually exclusive with --room)
  *   --url         Base URL of the QRMeet server  (default: http://localhost:8787)
  *   --users       Number of users to create      (default: 10)
  *   --encounters  Number of encounters to run    (default: all unique pairs)
  *   --treasures   Number of treasure QRs to create and have everyone claim (default: 0)
  *   --name        Room name                       (default: SimulationRoom)
  *   --password    Admin password                  (default: simtest123)
- *   --room        Use an existing room id instead of creating one
  *
  * Tip: set ENCOUNTER_DURATION_SECONDS low in wrangler.toml (e.g. "5") before simulating —
  * because encounters are sequential, the total runtime is roughly
@@ -65,8 +70,9 @@ const { values: args } = parseArgs({
     treasures:  { type: 'string', default: '0' },
     name:       { type: 'string', default: 'SimulationRoom' },
     password:   { type: 'string', default: 'simtest123' },
-    room:       { type: 'string' },
-    help:       { type: 'boolean', default: false },
+    room:          { type: 'string' },
+    'create-room': { type: 'boolean', default: false },
+    help:          { type: 'boolean', default: false },
   },
   strict: false,
 })
@@ -301,8 +307,7 @@ async function main() {
   console.log(`  Admin : ${BASE_URL}/r/${roomId}/admin`)
 }
 
-if (args.help) {
-  console.log(`
+const HELP = `
 QRMeet simulation script
 Populates a room with fake users, drives encounters sequentially, and optionally
 runs a treasure hunt.
@@ -311,14 +316,19 @@ Usage:
   npx tsx scripts/simulate.ts [options]
   npm run simulate -- [options]
 
+You must pick a target room: pass --room <id> to join an existing one, or
+--create-room to create a fresh one. Without either, this help is printed and
+nothing runs (guards against creating a room on a real/prod server by accident).
+
 Options:
+  --room <id>          Join this existing room
+  --create-room        Create a fresh room (mutually exclusive with --room)
   --url <url>           Base URL of the QRMeet server
                           default: http://localhost:8787
   --name <name>         Room name (used when creating a new room)
                           default: SimulationRoom
   --password <pw>       Admin password (room creation + admin calls)
                           default: simtest123
-  --room <id>           Use an existing room instead of creating one
   --users <n>           Number of users to create and join
                           default: 10
   --encounters <n>      Number of encounters to simulate
@@ -329,10 +339,10 @@ Options:
 
 Examples:
   # Create a room, join 10 users, run all encounters one at a time
-  npm run simulate
+  npm run simulate -- --create-room
 
   # Smaller, faster run with a treasure hunt
-  npm run simulate -- --users 5 --encounters 4 --treasures 3
+  npm run simulate -- --create-room --users 5 --encounters 4 --treasures 3
 
   # Point at an existing room (pass its admin password for treasures)
   npm run simulate -- --room abc123 --password hunter2 --treasures 2
@@ -344,7 +354,16 @@ Notes:
     duration in wrangler.toml when simulating many encounters.
   - Distinct fake IPs are sent per user to bypass the per-IP join rate limit in
     local dev (Wrangler sets cf-connecting-ip to 127.0.0.1 for all requests).
-`)
+`
+
+if (args.help) {
+  console.log(HELP)
+} else if (args.room && args['create-room']) {
+  console.error('Pass either --room <id> or --create-room, not both.')
+  process.exit(1)
+} else if (!args.room && !args['create-room']) {
+  console.log(HELP)
+  console.log('Nothing was run: pass --room <id> to join a room, or --create-room to create one.\n')
 } else {
   main().catch(err => console.error('\nFatal:', err))
 }
