@@ -68,7 +68,7 @@ treasures.post('/:treasureId/claim', async (c) => {
     return c.json({ error: 'This treasure is currently disabled.' }, 403)
   }
 
-  // Resolve awarded points: per-treasure override, else room default. Snapshot it.
+  // Resolve awarded points: per-treasure override, else the room default. Snapshot it.
   const points = treasure.points ?? settings.treasureDefaultPoints
 
   const scanId = newPublicId()

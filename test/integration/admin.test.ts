@@ -23,7 +23,7 @@ describe('admin settings', () => {
     const { data } = await admin(roomId, adminToken).get('/settings')
     expect(data).toMatchObject({
       treasureHuntEnabled: true,
-      treasureDefaultPoints: 3,
+      treasureDefaultPoints: 2, // seeded from TREASURE_DEFAULT_POINTS at creation
       roomTtlDays: 7,
     })
   })

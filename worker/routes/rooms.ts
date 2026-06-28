@@ -46,9 +46,15 @@ rooms.post('/', async (c) => {
 
   const name = body.name ?? 'QRMeet'
   const ipSalt = generateToken()
+  // Snapshot the server default treasure points into the room at creation. The
+  // room then owns a plain editable value (no live server-default resolution),
+  // so changing TREASURE_DEFAULT_POINTS later only affects rooms created after.
+  const settings = JSON.stringify({
+    treasureDefaultPoints: parseInt(c.env.TREASURE_DEFAULT_POINTS || '2'),
+  })
   await c.env.DB.prepare(
-    'INSERT INTO rooms (id, name, admin_token_hash, created_at, expires_at, ip_salt) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(id, name, adminTokenHash, now, expiresAt, ipSalt).run()
+    'INSERT INTO rooms (id, name, admin_token_hash, created_at, expires_at, ip_salt, settings) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(id, name, adminTokenHash, now, expiresAt, ipSalt, settings).run()
 
   // Seed default questions for this room
   const questionInserts = DEFAULT_QUESTIONS.map(text =>

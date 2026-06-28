@@ -29,6 +29,7 @@ export interface Env {
   ENCOUNTER_DURATION_SECONDS: string
   MAX_PARTICIPANTS: string
   ROOM_TTL_DAYS: string
+  TREASURE_DEFAULT_POINTS: string
 }
 
 export interface Room {

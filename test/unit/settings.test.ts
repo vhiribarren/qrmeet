@@ -10,13 +10,14 @@ describe('parseSettings', () => {
       encounterDurationSeconds: null,
       maxParticipants: null,
       treasureHuntEnabled: true,
-      treasureDefaultPoints: 3,
+      treasureDefaultPoints: 2,
+      boardTopSize: 10,
     })
   })
 
   it('tolerates null and invalid JSON', () => {
     expect(parseSettings(null).treasureHuntEnabled).toBe(true)
-    expect(parseSettings(undefined).treasureDefaultPoints).toBe(3)
+    expect(parseSettings(undefined).treasureDefaultPoints).toBe(2)
     expect(parseSettings('not json').isOpen).toBe(true)
   })
 
@@ -36,12 +37,13 @@ describe('resolveSettings', () => {
     expect(r.encounterDurationSeconds).toBe(42)
     expect(r.maxParticipants).toBe(99)
     expect(r.treasureHuntEnabled).toBe(true)
-    expect(r.treasureDefaultPoints).toBe(3)
+    expect(r.treasureDefaultPoints).toBe(2) // passthrough from parseSettings default
   })
 
   it('keeps explicit values over env fallbacks', () => {
-    const r = resolveSettings(parseSettings(JSON.stringify({ encounterDurationSeconds: 7, maxParticipants: 5 })), env)
+    const r = resolveSettings(parseSettings(JSON.stringify({ encounterDurationSeconds: 7, maxParticipants: 5, treasureDefaultPoints: 9 })), env)
     expect(r.encounterDurationSeconds).toBe(7)
     expect(r.maxParticipants).toBe(5)
+    expect(r.treasureDefaultPoints).toBe(9)
   })
 })

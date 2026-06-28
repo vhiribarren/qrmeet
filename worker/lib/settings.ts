@@ -38,7 +38,7 @@ export interface RoomSettings {
   encounterDurationSeconds: number | null  // null = use server default
   maxParticipants: number | null           // null = use server default
   treasureHuntEnabled: boolean             // treasure hunt mode on/off
-  treasureDefaultPoints: number            // points for treasures with no override
+  treasureDefaultPoints: number            // points for treasures with no per-QR override; seeded from TREASURE_DEFAULT_POINTS at room creation
   boardTopSize: number                     // how many ranked players the public board shows
 }
 
@@ -52,7 +52,7 @@ export function parseSettings(raw: string | null | undefined): RoomSettings {
     encounterDurationSeconds: s.encounterDurationSeconds ?? null,
     maxParticipants:          s.maxParticipants          ?? null,
     treasureHuntEnabled:      s.treasureHuntEnabled      ?? true,
-    treasureDefaultPoints:    s.treasureDefaultPoints    ?? 3,
+    treasureDefaultPoints:    s.treasureDefaultPoints    ?? 2,
     boardTopSize:             s.boardTopSize             ?? 10,
   }
 }

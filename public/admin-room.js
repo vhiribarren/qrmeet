@@ -76,12 +76,12 @@ function adminApp() {
     settingsDuration: 300,
     settingsDurationIsDefault: true,
     settingsTreasureHuntEnabled: false,
-    settingsTreasureDefaultPoints: 3,
+    settingsTreasureDefaultPoints: 2,
     settingsBoardTopSize: 10,
     questions: [],
     newQuestionText: '',
     treasures: [],
-    treasureDefaultPoints: 3,
+    treasureDefaultPoints: 2,
     newTreasureLabel: '',
     newTreasurePoints: '',   // '' = inherit room default
 

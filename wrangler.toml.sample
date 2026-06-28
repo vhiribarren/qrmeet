@@ -36,6 +36,10 @@ ENCOUNTER_DURATION_SECONDS = "300"
 MAX_JOINS_PER_IP = "100"
 # Room lifetime in days before automatic deletion (cron). Default: 7.
 ROOM_TTL_DAYS = "7"
+# Default points per treasure, copied into each room's settings at creation
+# (editable afterwards per room in the admin Settings tab). Changing this only
+# affects rooms created after the change. Default: 2.
+TREASURE_DEFAULT_POINTS = "2"
 
 [observability]
 enabled = true

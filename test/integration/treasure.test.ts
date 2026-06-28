@@ -4,7 +4,8 @@ import { createRoom, joinUser, claimTreasure, getScore, admin, createTreasure } 
 describe('treasure hunt', () => {
   it('claims a treasure and awards the room default points', async () => {
     const { roomId, adminToken } = await createRoom()
-    const tid = await createTreasure(roomId, adminToken) // inherits default (3)
+    await admin(roomId, adminToken).put('/settings', { treasureDefaultPoints: 3 })
+    const tid = await createTreasure(roomId, adminToken) // inherits room default (3)
     const u = await joinUser(roomId)
 
     const { res, data } = await claimTreasure(roomId, u, tid)
@@ -18,8 +19,17 @@ describe('treasure hunt', () => {
     expect(s.data.treasuresFound).toBe(1)
   })
 
+  it("awards the room's seeded default (2) when nothing overrides it", async () => {
+    const { roomId, adminToken } = await createRoom() // settings seeded with default 2
+    const tid = await createTreasure(roomId, adminToken)
+    const u = await joinUser(roomId)
+    const { data } = await claimTreasure(roomId, u, tid)
+    expect(data.points).toBe(2)
+  })
+
   it('lets a player claim a given treasure only once', async () => {
     const { roomId, adminToken } = await createRoom()
+    await admin(roomId, adminToken).put('/settings', { treasureDefaultPoints: 3 })
     const tid = await createTreasure(roomId, adminToken)
     const u = await joinUser(roomId)
     await claimTreasure(roomId, u, tid)
@@ -40,6 +50,7 @@ describe('treasure hunt', () => {
 
   it('snapshots awarded points; changing the default does not rewrite earned points', async () => {
     const { roomId, adminToken } = await createRoom()
+    await admin(roomId, adminToken).put('/settings', { treasureDefaultPoints: 3 })
     const tid = await createTreasure(roomId, adminToken) // inherits 3
     const u1 = await joinUser(roomId)
     await claimTreasure(roomId, u1, tid) // +3 snapshotted
@@ -89,6 +100,7 @@ describe('treasure hunt', () => {
 
   it('deleting a treasure removes its scans and lowers scores', async () => {
     const { roomId, adminToken } = await createRoom()
+    await admin(roomId, adminToken).put('/settings', { treasureDefaultPoints: 3 })
     const tid = await createTreasure(roomId, adminToken)
     const u = await joinUser(roomId)
     await claimTreasure(roomId, u, tid)

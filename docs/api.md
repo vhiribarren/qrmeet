@@ -296,11 +296,13 @@ Fetch current room settings.
   "maxParticipants": 100,
   "maxParticipantsIsDefault": true,
   "treasureHuntEnabled": true,
-  "treasureDefaultPoints": 3,
+  "treasureDefaultPoints": 2,
   "boardTopSize": 10,
   "roomTtlDays": 7
 }
 ```
+
+`treasureDefaultPoints` is a plain per-room value, seeded at room creation from the server env `TREASURE_DEFAULT_POINTS` (default `2`) and editable thereafter.
 
 ---
 
