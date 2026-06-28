@@ -147,6 +147,7 @@ function qrmeet() {
     wsReconnectTimer: null,
     wsPingTimer: null,
     wsConnectedBefore: false,
+    wsStatus: 'connecting', // 'offline' | 'connecting' | 'online' — drives the connection indicator
 
     // Emoji palette
     emojis: [], // no longer used — emoji-picker-element handles this
@@ -813,6 +814,7 @@ function qrmeet() {
       if (this.ws && this.ws.readyState <= 1) return
       if (!this.me || !this.roomId) return
       clearTimeout(this.wsReconnectTimer)
+      this.wsStatus = 'connecting'
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
       const url = `${proto}//${location.host}/api/rooms/${this.roomId}/users/${this.me.publicId}/ws`
@@ -822,6 +824,7 @@ function qrmeet() {
       this.ws = new WebSocket(url, ['qrmeet.token', this.me.privateToken])
 
       this.ws.onopen = () => {
+        this.wsStatus = 'online'
         this.startWsPing()
         // Safety net: a token_refresh push sent while the socket was down is lost.
         // Re-issue from the server on every *re*connect so a missed burn never
@@ -832,6 +835,7 @@ function qrmeet() {
       }
       this.ws.onmessage = (evt) => this.handleWsMessage(JSON.parse(evt.data))
       this.ws.onclose = () => {
+        this.wsStatus = 'offline'
         this.stopWsPing()
         this.wsReconnectTimer = setTimeout(() => this.connectWs(), 3000)
       }

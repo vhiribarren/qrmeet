@@ -134,7 +134,7 @@ SOFTWARE.
     <!-- ── CARD PAGE ── -->
     <div class="page page--with-nav" x-show="page === 'card'" x-transition:enter="page-enter">
       <div class="card-page">
-        
+
         <!-- Install Banner -->
         <div class="install-banner" x-show="showInstallBanner" x-transition>
           <!-- Standard PWA Prompt -->
@@ -162,6 +162,12 @@ SOFTWARE.
         </div>
 
         <div class="id-card" @click="editingName = false">
+          <!-- Connection indicator -->
+          <div class="ws-status" :class="'ws-status--' + wsStatus" :title="wsStatus === 'online' ? 'Live connection — scans update instantly' : 'Trying to reach the server…'">
+            <span class="ws-status__dot"></span>
+            <span x-text="wsStatus === 'online' ? 'Connected' : wsStatus === 'connecting' ? 'Connecting…' : 'Offline'"></span>
+          </div>
+
           <div class="emoji-field">
             <button class="emoji-field__display" @click.stop="toggleEmojiPicker()" x-text="me?.emoji ?? '😊'"></button>
             <div class="emoji-field__popup" x-show="showEmojiPicker" @click.stop>
