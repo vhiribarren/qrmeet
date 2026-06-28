@@ -146,6 +146,7 @@ function qrmeet() {
     ws: null,
     wsReconnectTimer: null,
     wsPingTimer: null,
+    wsConnectTimer: null,
     wsConnectedBefore: false,
     wsStatus: 'connecting', // 'offline' | 'connecting' | 'online' — drives the connection indicator
 
@@ -823,7 +824,19 @@ function qrmeet() {
       // never appears in server access/observability logs.
       this.ws = new WebSocket(url, ['qrmeet.token', this.me.privateToken])
 
+      // Watchdog: a WebSocket can hang in CONNECTING indefinitely (e.g. a proxy
+      // that accepts the TCP connection but never completes the upgrade). The
+      // browser then fires neither onopen nor onclose, so without this the client
+      // stays stuck on "connecting" forever and never retries — only a manual
+      // page reload recovers. If the handshake hasn't completed in time, force a
+      // close, which fires onclose and schedules a fresh reconnect.
+      clearTimeout(this.wsConnectTimer)
+      this.wsConnectTimer = setTimeout(() => {
+        if (this.ws && this.ws.readyState === 0) this.ws.close()
+      }, 10000)
+
       this.ws.onopen = () => {
+        clearTimeout(this.wsConnectTimer)
         this.wsStatus = 'online'
         this.startWsPing()
         // Safety net: a token_refresh push sent while the socket was down is lost.
@@ -835,6 +848,7 @@ function qrmeet() {
       }
       this.ws.onmessage = (evt) => this.handleWsMessage(JSON.parse(evt.data))
       this.ws.onclose = () => {
+        clearTimeout(this.wsConnectTimer)
         this.wsStatus = 'offline'
         this.stopWsPing()
         this.wsReconnectTimer = setTimeout(() => this.connectWs(), 3000)
