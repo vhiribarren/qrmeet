@@ -853,7 +853,16 @@ function qrmeet() {
 
     handleWsMessage(msg) {
       if (msg.type === 'connected') {
-        // Connected to DurableRoom, no active session — just wait for notifications
+        // Authoritative: the server has no active or pending encounter for us
+        // (an active/expired one would arrive as session_start instead). If we
+        // still hold a session, it was confirmed/ended while we were disconnected
+        // and we missed the push — clear it and re-sync the score. On a fresh
+        // connect with no session this is a no-op.
+        if (this.session) {
+          this.session = null
+          clearInterval(this.sessionTimer)
+          this.loadScore()
+        }
       }
 
       if (msg.type === 'session_start') {
