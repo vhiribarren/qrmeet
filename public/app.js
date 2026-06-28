@@ -774,11 +774,16 @@ function qrmeet() {
           this.scanState = 'confirmed'
           if (navigator.vibrate) navigator.vibrate([10, 60, 20])
           if (this.session) this.session.confirmed = true
+          // The encounter is over, so — unlike 'started' above — we do NOT jump to
+          // the card. Auto-switching would flash the "Meeting confirmed!" screen for
+          // only as long as the two awaits below, which is what made the confirmation
+          // vanish almost instantly for the scanner (the scannee keeps a 3.5s toast).
+          // Stay on the confirmation screen and let the user dismiss it via the
+          // "Back to my card" button (goTo('card') opens the socket), like treasures.
+          history.replaceState({}, '', `/r/${this.roomId}`)
+          // Prep the card behind the scenes so the button shows a ready, fresh QR.
           await this.loadScore()
           await this.refreshQrToken()
-          // Redirect to room URL
-          history.replaceState({}, '', `/r/${this.roomId}`)
-          this.page = 'card' // the page watcher opens the live socket
         }
       } catch (e) {
         this.scanState = 'error'
