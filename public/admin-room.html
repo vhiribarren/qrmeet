@@ -72,6 +72,8 @@ SOFTWARE.
           <a :href="'/r/' + roomId + '/board'" target="_blank" rel="noopener" class="btn btn--ghost">📊 Open Board</a>
         </div>
 
+        <!-- Left column on wide screens: stats + tab navigation -->
+        <div class="admin-side">
         <!-- Stat Cards -->
         <div class="stat-cards">
           <div class="stat-card">
@@ -97,6 +99,10 @@ SOFTWARE.
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'treasure' }" @click="tab = 'treasure'; loadTreasures()">Treasure</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'settings' }" @click="tab = 'settings'; loadSettings()">Settings</button>
         </div>
+        </div>
+
+        <!-- Right column on wide screens: active tab content -->
+        <div class="admin-main">
 
         <!-- Join Tab -->
         <div x-show="tab === 'join'">
@@ -319,6 +325,7 @@ SOFTWARE.
             <p class="settings-form__hint">Permanently delete this room and all its data. This cannot be undone.</p>
             <button class="btn btn--danger" @click="deleteRoom()">Delete this room</button>
           </div>
+        </div>
         </div>
       </div>
     </template>
