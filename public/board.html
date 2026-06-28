@@ -67,12 +67,12 @@ SOFTWARE.
 
       <!-- Tabs -->
       <div class="tabs">
-        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'top10' }" @click="tab = 'top10'">Top 10</button>
+        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'top10' }" @click="tab = 'top10'" x-text="'Top ' + boardTopSize"></button>
         <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
         <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'">Join</button>
       </div>
 
-      <!-- Top 10 Tab -->
+      <!-- Leaderboard (top N) Tab -->
       <div x-show="tab === 'top10'">
         <table class="leaderboard">
           <thead>
@@ -102,7 +102,7 @@ SOFTWARE.
           </tbody>
         </table>
         <p class="leaderboard__empty" x-show="scores.length === 0">No participants yet.</p>
-        <p class="leaderboard__note" x-show="totalParticipants > 10" x-text="'Showing top 10 of ' + totalParticipants + ' participants'"></p>
+        <p class="leaderboard__note" x-show="totalParticipants > scores.length" x-text="'Showing top ' + scores.length + ' of ' + totalParticipants + ' participants'"></p>
       </div>
 
       <!-- Graph Tab -->

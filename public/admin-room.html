@@ -302,6 +302,13 @@ SOFTWARE.
             </div>
             <p class="settings-form__default" x-show="settingsDurationIsDefault">Using server default.</p>
 
+            <h3>Leaderboard</h3>
+            <p class="settings-form__hint">How many top-ranked players the public board displays. Maximum 100.</p>
+            <div class="settings-form__row">
+              <label for="board-top-size-input">Players shown on the board</label>
+              <input id="board-top-size-input" type="number" min="1" max="100" x-model.number="settingsBoardTopSize">
+            </div>
+
             <div class="settings-form__actions">
               <button class="btn btn--primary" @click="saveSettings()" :disabled="!settingsDurationValid || !settingsName.trim()">Save settings</button>
             </div>

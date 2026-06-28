@@ -24,16 +24,19 @@
 
 import { Hono } from 'hono'
 import { Env } from '../lib/types'
+import { parseSettings } from '../lib/settings'
 
 const board = new Hono<{ Bindings: Env }>()
 
-// GET /api/rooms/:roomId/board/scores — public, top 10
+// GET /api/rooms/:roomId/board/scores — public, top N (admin-configurable)
 board.get('/scores', async (c) => {
   const roomId = c.req.param('roomId') as string
   const room = await c.env.DB.prepare(
-    'SELECT id, name, expires_at FROM rooms WHERE id = ?'
-  ).bind(roomId).first<{ id: string; name: string; expires_at: number }>()
+    'SELECT id, name, expires_at, settings FROM rooms WHERE id = ?'
+  ).bind(roomId).first<{ id: string; name: string; expires_at: number; settings: string }>()
   if (!room) return c.json({ error: 'Room not found' }, 404)
+
+  const topSize = parseSettings(room.settings).boardTopSize
 
   const scores = await c.env.DB.prepare(`
     SELECT
@@ -51,14 +54,14 @@ board.get('/scores', async (c) => {
     WHERE u.room_id = ?
     GROUP BY u.public_id
     ORDER BY score DESC, u.created_at ASC
-    LIMIT 10
-  `).bind(roomId).all()
+    LIMIT ?
+  `).bind(roomId, topSize).all()
 
   const totalUsers = await c.env.DB.prepare(
     'SELECT COUNT(*) as count FROM users WHERE room_id = ?'
   ).bind(roomId).first<{ count: number }>()
 
-  return c.json({ scores: scores.results, totalParticipants: totalUsers?.count ?? 0, roomName: room.name, expiresAt: room.expires_at })
+  return c.json({ scores: scores.results, totalParticipants: totalUsers?.count ?? 0, boardTopSize: topSize, roomName: room.name, expiresAt: room.expires_at })
 })
 
 // GET /api/rooms/:roomId/board/graph — public, all nodes & edges

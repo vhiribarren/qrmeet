@@ -45,6 +45,7 @@ function boardApp() {
     roomName: '',
     scores: [],
     totalParticipants: 0,
+    boardTopSize: 10,
     totalMeetings: 0,
     topScore: 0,
     tab: 'top10',
@@ -128,6 +129,7 @@ function boardApp() {
       const data = await res.json()
       this.scores = data.scores || []
       this.totalParticipants = data.totalParticipants || 0
+      this.boardTopSize = data.boardTopSize ?? this.boardTopSize
       this.roomName = data.roomName || ''
       this.expiresAt = data.expiresAt || 0
       this.topScore = this.scores.length > 0 ? this.scores[0].score : 0

@@ -39,6 +39,7 @@ export interface RoomSettings {
   maxParticipants: number | null           // null = use server default
   treasureHuntEnabled: boolean             // treasure hunt mode on/off
   treasureDefaultPoints: number            // points for treasures with no override
+  boardTopSize: number                     // how many ranked players the public board shows
 }
 
 export function parseSettings(raw: string | null | undefined): RoomSettings {
@@ -52,6 +53,7 @@ export function parseSettings(raw: string | null | undefined): RoomSettings {
     maxParticipants:          s.maxParticipants          ?? null,
     treasureHuntEnabled:      s.treasureHuntEnabled      ?? true,
     treasureDefaultPoints:    s.treasureDefaultPoints    ?? 3,
+    boardTopSize:             s.boardTopSize             ?? 10,
   }
 }
 
@@ -66,5 +68,6 @@ export function resolveSettings(settings: RoomSettings, env: Env) {
                                 ?? parseInt(env.MAX_PARTICIPANTS || '100'),
     treasureHuntEnabled:      settings.treasureHuntEnabled,
     treasureDefaultPoints:    settings.treasureDefaultPoints,
+    boardTopSize:             settings.boardTopSize,
   }
 }

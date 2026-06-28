@@ -30,6 +30,7 @@ import { newPublicId } from '../lib/ids'
 import { parseSettings, resolveSettings, RoomSettings } from '../lib/settings'
 
 const MAX_ENCOUNTER_DURATION_SECONDS = 3600
+const MAX_BOARD_TOP_SIZE = 100
 
 const admin = new Hono<{ Bindings: Env }>()
 
@@ -122,6 +123,7 @@ admin.get('/rooms/:roomId/settings', async (c) => {
     maxParticipantsIsDefault:    settings.maxParticipants === null,
     treasureHuntEnabled:         settings.treasureHuntEnabled,
     treasureDefaultPoints:       settings.treasureDefaultPoints,
+    boardTopSize:                settings.boardTopSize,
     // expose defaults so the UI can show them
     defaultEncounterDurationSeconds: defaultDuration,
     defaultMaxParticipants:          defaultMaxParticipants,
@@ -145,6 +147,7 @@ admin.put('/rooms/:roomId/settings', async (c) => {
     maxParticipants?: number | null
     treasureHuntEnabled?: boolean
     treasureDefaultPoints?: number
+    boardTopSize?: number
   }>()
 
   // Validate name separately — it is a top-level column, not part of settings JSON
@@ -173,6 +176,12 @@ admin.put('/rooms/:roomId/settings', async (c) => {
       return c.json({ error: 'treasureDefaultPoints must be an integer >= 1' }, 400)
     }
   }
+  if (body.boardTopSize !== undefined) {
+    const v = body.boardTopSize
+    if (!Number.isInteger(v) || v < 1 || v > MAX_BOARD_TOP_SIZE) {
+      return c.json({ error: `boardTopSize must be an integer between 1 and ${MAX_BOARD_TOP_SIZE}` }, 400)
+    }
+  }
 
   // Merge incoming fields into the existing settings blob
   const existing = await c.env.DB.prepare(
@@ -193,6 +202,7 @@ admin.put('/rooms/:roomId/settings', async (c) => {
                                 : current.maxParticipants,
     treasureHuntEnabled:      body.treasureHuntEnabled   ?? current.treasureHuntEnabled,
     treasureDefaultPoints:    body.treasureDefaultPoints ?? current.treasureDefaultPoints,
+    boardTopSize:             body.boardTopSize          ?? current.boardTopSize,
   }
 
   await c.env.DB.prepare(

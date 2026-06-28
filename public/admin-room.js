@@ -77,6 +77,7 @@ function adminApp() {
     settingsDurationIsDefault: true,
     settingsTreasureHuntEnabled: false,
     settingsTreasureDefaultPoints: 3,
+    settingsBoardTopSize: 10,
     questions: [],
     newQuestionText: '',
     treasures: [],
@@ -251,6 +252,7 @@ function adminApp() {
       this.settingsDurationIsDefault = data.encounterDurationIsDefault
       this.settingsTreasureHuntEnabled = data.treasureHuntEnabled
       this.settingsTreasureDefaultPoints = data.treasureDefaultPoints
+      this.settingsBoardTopSize = data.boardTopSize ?? this.settingsBoardTopSize
       this.roomTtlDays = data.roomTtlDays ?? this.roomTtlDays
     },
 
@@ -285,6 +287,7 @@ function adminApp() {
           encounterDurationSeconds: this.settingsDuration,
           treasureHuntEnabled: this.settingsTreasureHuntEnabled,
           treasureDefaultPoints: this.settingsTreasureDefaultPoints,
+          boardTopSize: this.settingsBoardTopSize,
         }),
       })
       if (res.ok) {

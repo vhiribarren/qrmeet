@@ -218,7 +218,7 @@ The server:
 No authentication required.
 
 ### `GET /api/rooms/:roomId/board/scores`
-Top 10 leaderboard.
+Top-ranked leaderboard. The number of players returned is the room's `boardTopSize` setting (default `10`, admin-configurable up to `100`).
 
 **Response `200`**
 ```json
@@ -297,6 +297,7 @@ Fetch current room settings.
   "maxParticipantsIsDefault": true,
   "treasureHuntEnabled": true,
   "treasureDefaultPoints": 3,
+  "boardTopSize": 10,
   "roomTtlDays": 7
 }
 ```
