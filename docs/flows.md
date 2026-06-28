@@ -10,26 +10,27 @@ QRMeet is a networking game for in-person events. Participants scan each other's
 
 ```mermaid
 graph TD
-    A[Opens /] --> SA{Standalone PWA with session?}
-    SA -- Yes --> CardView
-    SA -- No --> Landing
+    Root["Open /"] --> RootSaved{Saved session?}
+    RootSaved -- No --> Landing[Landing page]
+    RootSaved -- Yes --> RootMode{Standalone PWA?}
+    RootMode -- Yes --> Card[Card view]
+    RootMode -- No --> LandingResume[Landing with Resume option]
 
-    B[Opens /r/roomId] --> DR{Session for diff room?}
-    DR -- Yes --> Conf{Confirm switch?}
-    Conf -- Yes --> Reset[Reset state] --> Join[Join as new user] --> CardView
-    Conf -- No --> CardView (old room)
-    DR -- No --> HS{Has session for this room?}
-    HS -- Yes --> CardView
-    HS -- No --> Join
+    RoomUrl["Open /r/:roomId"] --> RoomDiff{Saved session for a different room?}
+    RoomDiff -- Yes --> RoomConfirm{Confirm switch?}
+    RoomConfirm -- No --> CardOld[Card view of the current room]
+    RoomConfirm -- Yes --> RoomJoin[Reset state, join as new user] --> Card
+    RoomDiff -- No --> RoomSame[Join or resume this room] --> Card
 
-    C[Opens scan URL] --> DR2{Session for diff room?}
-    DR2 -- Yes --> Conf2{Confirm switch?}
-    Conf2 -- Yes --> Reset2[Reset state] --> AutoJoin[Auto-join / Join] --> Scan[Process scan]
-    Conf2 -- No --> CardView (old room)
-    DR2 -- No --> HS2{Has session for this room?}
-    HS2 -- Yes --> Scan
-    HS2 -- No --> AutoJoin
+    ScanUrl[Open scan URL] --> ScanDiff{Saved session for a different room?}
+    ScanDiff -- Yes --> ScanConfirm{Confirm switch?}
+    ScanConfirm -- No --> CardOld
+    ScanConfirm -- Yes --> ScanSwitch[Reset state, auto-join new room] --> Scan[Process scan]
+    ScanDiff -- No --> ScanJoin[Auto-join if needed] --> Scan
 ```
+
+The treasure URL (`/r/:roomId/treasure/:treasureId`) follows the same different-room
+confirmation gate as the scan URL, then claims the treasure (see [Treasure claim](#treasure-claim)).
 
 ---
 
@@ -44,11 +45,11 @@ Entry points to the `/admin` console (the keychain launcher):
 
 ```mermaid
 graph TD
-    OPEN[Open /admin console] --> LIST{Rooms in keychain?}
-    LIST -- Yes --> PICK[Pick a room] --> PANEL[/r/:roomId/admin dashboard]
+    OPEN["Open /admin console"] --> LIST{Rooms in keychain?}
+    LIST -- Yes --> PICK[Pick a room] --> PANEL["Room admin dashboard (/r/:roomId/admin)"]
     LIST -- No --> CHOICE{Create or add?}
-    CHOICE -- Create --> CREATE[POST /api/rooms] --> STORE1[Add to keychain] --> PANEL
-    CHOICE -- Add existing --> AUTH[Verify code + password] --> STORE2[Add to keychain] --> LIST
+    CHOICE -- Create --> CREATE["POST /api/rooms"] --> STORE1[Add to keychain] --> PANEL
+    CHOICE -- Add existing --> AUTH[Verify code and password] --> STORE2[Add to keychain] --> LIST
     PANEL --> BACK[Back to My rooms] --> OPEN
 ```
 
@@ -151,7 +152,7 @@ Treasure hunt mode is independent of the encounter game. A treasure QR encodes a
 stateDiagram-v2
     [*] --> Scanned : Open or scan treasure URL
     Scanned --> Joined : ensureUser (auto POST /users)
-    Joined --> Claimed : POST /treasures/:id/claim succeeds
+    Joined --> Claimed : POST .../claim succeeds
     note right of Claimed : treasure_scans row inserted, points snapshotted, board refreshed
     Joined --> AlreadyClaimed : UNIQUE(treasure_id, user_id) hit
     note right of AlreadyClaimed : No extra points awarded

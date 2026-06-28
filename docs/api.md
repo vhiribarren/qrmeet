@@ -471,6 +471,7 @@ The connection is proxied to the room's `DurableRoom` instance. The user stays c
 | `session_start` | Encounter created (push) or reconnect with active session | `encounterId`, `endsAt`, `serverTime`, `partnerName`, `partnerEmoji`, `question` |
 | `session_end` | Timer elapses (Durable Object alarm) | `encounterId`, `message` |
 | `session_confirmed` | Meeting confirmed via second scan | `encounterId` |
+| `token_refresh` | This user's QR token was just burned by someone scanning it — client re-issues a fresh one via `POST …/qr-token` | — |
 | `board_update` | Board viewer: triggered on user join or confirmed encounter | — |
 
 `question` in `session_start` is a randomly selected conversation prompt from the room's question pool. Each participant receives a different question. Empty string when questions are disabled for the room (`questionsEnabled: false`). The **scanner** also receives their question in the `POST /scan` HTTP response, since they often have no live WebSocket at the moment the encounter is created (a cold scan deep-link connects the socket only afterwards) and could otherwise miss the push; the scannee, who is already on their card, gets it from the `session_start` push.
