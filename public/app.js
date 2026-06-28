@@ -98,7 +98,7 @@ async function apiFetch(url, options = {}) {
 function qrmeet() {
   return {
     // ── State ──
-    page: 'landing',
+    page: 'loading',
     me: null,           // { publicId, privateToken, displayName, emoji }
     roomId: null,
     scoreData: null,
@@ -389,6 +389,13 @@ function qrmeet() {
         await this.enterRoom()
       } catch (e) {
         this.showToast(e.message)
+        // A join can fail from a cold deep link (/r/:roomId) while the loading
+        // splash is still up — fall back to the landing page so the user isn't
+        // stranded on the spinner and can retry or enter another code.
+        if (this.page === 'loading') {
+          history.replaceState({}, '', '/')
+          this.page = 'landing'
+        }
       } finally {
         this._joiningRoom = false
       }

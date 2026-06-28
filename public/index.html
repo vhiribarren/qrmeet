@@ -68,6 +68,15 @@ SOFTWARE.
       </div>
     </div>
 
+    <!-- ── LOADING PAGE ── -->
+    <!-- Neutral splash shown while init() decides which page to display, so the
+         landing page no longer flashes before a session is resumed or a scan runs. -->
+    <div class="page loading" x-show="page === 'loading'">
+      <img class="loading__logo" src="/icon.svg" alt="QRMeet logo">
+      <div class="loading__spinner" aria-hidden="true"></div>
+      <span class="loading__label">Loading…</span>
+    </div>
+
     <!-- ── LANDING PAGE ── -->
     <div class="page" x-show="page === 'landing'" x-transition:enter="page-enter">
       <div class="landing__hero">
