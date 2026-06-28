@@ -1,6 +1,30 @@
+<div align="center">
+
+<img src="public/icon.svg" alt="QRMeet logo" width="110">
+
 # QRMeet
 
-Mobile-first app for corporate team building events. Participants scan each other's QR codes to trigger a 5-minute conversation timer, then scan again to confirm the meeting and earn a point.
+**Scan people, have conversations, earn points.**
+
+A mobile-first networking game for in-person events — no install, no account, no sign-up.
+
+📖 **[Usage guide](docs/usage.md)** · [Architecture](docs/architecture.md) · [API reference](docs/api.md)
+
+</div>
+
+Participants scan each other's QR codes to trigger a conversation timer, then scan again to confirm the meeting and earn a point. An optional treasure hunt awards bonus points from QR codes placed around the venue.
+
+<p align="center">
+  <img src="docs/images/card.webp" alt="Personal ID card" width="220">
+  <img src="docs/images/session.webp" alt="Conversation timer" width="220">
+  <img src="docs/images/score.webp" alt="Score" width="220">
+</p>
+
+<p align="center">
+  <img src="docs/images/board.webp" alt="Live leaderboard" width="680">
+</p>
+
+> 📖 New here? The **[Usage guide](docs/usage.md)** is an illustrated walkthrough with screenshots — for both participants and organisers.
 
 ## Technologies
 
@@ -99,7 +123,11 @@ The Durable Object (`DurableRoom`) is registered automatically via the `[[migrat
 
 ## Further reading
 
-See [docs/architecture.md](docs/architecture.md) for the full API reference, data model, and infrastructure overview.
+- [docs/usage.md](docs/usage.md) — illustrated usage guide for participants and organisers
+- [docs/architecture.md](docs/architecture.md) — stack, data model, infrastructure, design decisions
+- [docs/api.md](docs/api.md) — full API endpoint reference
+- [docs/flows.md](docs/flows.md) — user flows, state machines, sequence diagrams
+- [docs/guidelines.md](docs/guidelines.md) — development rules and conventions
 
 ## License
 
