@@ -180,7 +180,7 @@ stateDiagram-v2
 
     Consumed --> [*]
 
-    Consumed --> Issued : token_refresh / session event (forceRefreshQrToken)
+    Consumed --> Issued : Session event (refreshQrToken)
 ```
 
 ---

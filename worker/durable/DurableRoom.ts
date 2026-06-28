@@ -212,6 +212,14 @@ export class DurableRoom extends DurableObject<Env> {
     this.broadcastToBoards({ type: 'board_update' })
   }
 
+  // Tell a single user their QR token was just burned server-side (someone
+  // scanned them) so their client re-issues a fresh one. The new token is not
+  // sent here: the client re-reads it from D1 — the source of truth — via the
+  // /qr-token endpoint, exactly as it does on page load and on WS reconnect.
+  async notifyTokenBurned(userId: string): Promise<void> {
+    this.sendToUser(userId, JSON.stringify({ type: 'token_refresh' }))
+  }
+
   async cleanup(): Promise<void> {
     await this.ensureInitialized()
     this.encounters.clear()

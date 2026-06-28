@@ -113,6 +113,8 @@ scan.post('/', async (c) => {
     ).bind(now, existing.id).run()
     const confirmStub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
     await confirmStub.confirmEncounter(existing.id)
+    // The scannee's token was just burned above — tell their client to re-issue.
+    await confirmStub.notifyTokenBurned(scannee.public_id)
     console.info('encounter.confirmed', { room: roomId, encounter: existing.id, userA, userB })
     return c.json({ action: 'confirmed', encounterId: existing.id })
   }
@@ -153,6 +155,10 @@ scan.post('/', async (c) => {
   await c.env.DB.prepare(
     'UPDATE users SET qr_token = NULL WHERE public_id = ?'
   ).bind(scannee.public_id).run()
+  const stub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
+  // The scannee's displayed QR is now dead; tell their client to re-issue one.
+  // Sent here (right after the burn) so it covers the concurrent-insert path too.
+  await stub.notifyTokenBurned(scannee.public_id)
   const encId = newEncounterId()
   const now = Math.floor(Date.now() / 1000)
   const resolved = resolveSettings(settings, c.env)
@@ -191,7 +197,6 @@ scan.post('/', async (c) => {
     return c.json({ error: 'You already completed a session with this person.' }, 409)
   }
 
-  const startStub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
   let questionA = ''
   let questionB = ''
   if (resolved.questionsEnabled) {
@@ -200,7 +205,7 @@ scan.post('/', async (c) => {
     ).bind(roomId).all<{ text: string }>()
     ;[questionA, questionB] = pickTwoQuestions(rows.results)
   }
-  await startStub.startEncounter({
+  await stub.startEncounter({
     encounterId: encId,
     userAId: userA,
     userBId: userB,
