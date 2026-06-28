@@ -576,6 +576,64 @@ emoji-picker {
   width: 52px; font-size: 18px; font-weight: 800; color: var(--text);
 }
 
+/* ── WIDE SCREEN / BIG DISPLAY: two-column board ──
+   Full-width header on top, stats + tab menu on the left,
+   active tab content (leaderboard / graph / join) on the right. */
+@media (min-width: 900px) {
+  .board-wrap {
+    max-width: 1200px;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "header header"
+      "side   main";
+    column-gap: 32px; row-gap: 24px;
+    align-items: start;
+  }
+  .board-header { grid-area: header; margin-bottom: 0; }
+  .board-side {
+    grid-area: side; position: sticky; top: 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  /* Stretch the right column to fill the window so the graph can reach the bottom */
+  .board-main {
+    grid-area: main; align-self: stretch; min-width: 0; min-height: 0;
+    display: flex; flex-direction: column;
+  }
+
+  /* Stat cards stack vertically as a sidebar, value beside its label */
+  .stat-cards { grid-template-columns: 1fr; gap: 12px; margin-bottom: 0; }
+  .stat-card {
+    display: flex; align-items: center; gap: 14px;
+    text-align: left; padding: 16px 20px;
+  }
+  .stat-card::before { top: 0; bottom: 0; right: auto; width: 5px; height: auto; }
+  .stat-card__value { font-size: 40px; }
+  .stat-card__label { margin-top: 0; }
+
+  /* Tabs become a vertical menu */
+  .tabs { flex-direction: column; gap: 6px; border-bottom: none; margin-bottom: 0; }
+  .tabs__btn {
+    text-align: left; border-bottom: none; margin-bottom: 0;
+    border-radius: 10px; padding: 12px 16px;
+  }
+  .tabs__btn--active { background: rgba(99,102,241,0.1); }
+
+  /* More room for the podium on a big screen */
+  .podium { gap: 16px; }
+  .podium__place { max-width: 200px; }
+
+  /* Graph fills the remaining window height down to the bottom */
+  .tab-graph { flex: 1; min-height: 0; display: flex; }
+  .tab-graph .graph { flex: 1; height: auto; }
+
+  /* Bigger QR so it scans from across the room; pixelated keeps it crisp upscaled */
+  .join-tab { padding-top: 48px; }
+  .qr-box img { width: 300px; height: 300px; image-rendering: pixelated; }
+}
+
 .network-tag {
   display: inline-block; font-size: 11px; font-weight: 600; font-family: monospace;
   padding: 2px 6px; border-radius: 4px; letter-spacing: 0.03em;

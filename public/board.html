@@ -54,28 +54,34 @@ SOFTWARE.
         <p class="board-header__expiry" x-show="countdown" x-text="countdown"></p>
       </div>
 
-      <!-- Stat Cards -->
-      <div class="stat-cards">
-        <div class="stat-card">
-          <div class="stat-card__value" x-text="totalParticipants"></div>
-          <div class="stat-card__label">Participants</div>
+      <!-- Left column on wide screens: stats + tab navigation -->
+      <div class="board-side">
+        <!-- Stat Cards -->
+        <div class="stat-cards">
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="totalParticipants"></div>
+            <div class="stat-card__label">Participants</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="totalMeetings"></div>
+            <div class="stat-card__label">Meetings</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card__value" x-text="topScore"></div>
+            <div class="stat-card__label">Top Score</div>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-card__value" x-text="totalMeetings"></div>
-          <div class="stat-card__label">Meetings</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card__value" x-text="topScore"></div>
-          <div class="stat-card__label">Top Score</div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'top10' }" @click="tab = 'top10'" x-text="'Top ' + boardTopSize"></button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'">Join</button>
         </div>
       </div>
 
-      <!-- Tabs -->
-      <div class="tabs">
-        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'top10' }" @click="tab = 'top10'" x-text="'Top ' + boardTopSize"></button>
-        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
-        <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'">Join</button>
-      </div>
+      <!-- Right column on wide screens: active tab content -->
+      <div class="board-main">
 
       <!-- Leaderboard (top N) Tab -->
       <div x-show="tab === 'top10'">
@@ -130,7 +136,7 @@ SOFTWARE.
       </div>
 
       <!-- Graph Tab -->
-      <div x-show="tab === 'graph'">
+      <div class="tab-graph" x-show="tab === 'graph'">
         <div class="graph" id="board-graph"></div>
       </div>
 
@@ -144,6 +150,8 @@ SOFTWARE.
           <span class="join-tab__feedback" x-show="copied" x-transition>✓ Copied!</span>
         </div>
       </div>
+
+      </div><!-- /.board-main -->
     </div>
   </div>
 
