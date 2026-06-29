@@ -134,6 +134,9 @@ function adminApp() {
         adminKeychain.set(this.roomId, existing?.name || '', this.token)
         this.authenticated = true
         await this.loadScores()
+        // Load settings eagerly so the room name is available everywhere it's
+        // used (e.g. printed treasure cards), regardless of which tab is opened.
+        await this.loadSettings()
         this.$nextTick(() => this.generateRoomQr())
       } catch (e) {
         this.authError = 'Connection error'
@@ -523,10 +526,11 @@ function adminApp() {
         const points = (t.points ?? this.treasureDefaultPoints)
         return `
           <div class="treasure-card">
+            ${roomName ? `<div class="treasure-card__room">${escapeHtml(roomName)}</div>` : ''}
             ${qr.createImgTag(6, 1)}
             <div class="treasure-card__label">${escapeHtml(t.label || 'Treasure')}</div>
             <div class="treasure-card__meta">
-              ${roomName ? escapeHtml(roomName) + ' · ' : ''}room ${escapeHtml(this.roomId)} · #${escapeHtml(t.id)}
+              room ${escapeHtml(this.roomId)} · #${escapeHtml(t.id)}
             </div>
           </div>`
       }).join('')

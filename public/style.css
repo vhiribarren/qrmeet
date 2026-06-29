@@ -895,6 +895,7 @@ emoji-picker {
     padding: 12px; text-align: center; page-break-inside: avoid;
   }
   .treasure-card img { width: 180px; height: 180px; }
+  .treasure-card__room { font-weight: 700; font-size: 22px; margin-bottom: 8px; word-break: break-word; }
   .treasure-card__label { font-weight: 700; font-size: 15px; margin-top: 6px; }
   .treasure-card__meta { font-size: 11px; color: #555; margin-top: 4px; word-break: break-all; }
 }
