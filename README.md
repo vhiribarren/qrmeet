@@ -67,6 +67,20 @@ npm run dev          # wrangler dev on http://localhost:8787
 
 > For faster session testing, set `ENCOUNTER_DURATION_SECONDS = "30"` in `wrangler.toml` and restart.
 
+### Tests
+
+```bash
+npm test             # Vitest — unit + Workers integration (no extra setup)
+npm run test:e2e     # Playwright — front-end & WebSocket end-to-end
+```
+
+The Playwright suite (`e2e/`) drives real browser contexts against a live `wrangler dev`. Two one-time prerequisites:
+
+- A local `wrangler.toml` (copy `wrangler.toml.sample`) — same requirement as `npm run dev`.
+- The browser binary: `npx playwright install chromium` (the `@playwright/test` package itself comes with `npm install`).
+
+`npm run test:e2e` then handles the rest itself: it applies the local D1 migrations (`pretest:e2e` hook) and starts `wrangler dev` on `:8787` automatically (reusing an already-running one if present).
+
 ## Deploy to Cloudflare
 
 ### 0. Create configuration file
@@ -119,6 +133,7 @@ The Durable Object (`DurableRoom`) is registered automatically via the `[[migrat
 | `npm run db:migrate -- --remote` | Apply D1 migrations on production |
 | `npm test` | Run the Vitest suite (unit + Workers integration tests) |
 | `npm run test:watch` | Run the test suite in watch mode |
+| `npm run test:e2e` | Run the Playwright end-to-end suite (front-end + WebSocket; auto-starts `wrangler dev`) |
 | `npm run simulate -- --create-room` | Simulate users and encounters against a running instance (use `--room <id>` to target an existing room) |
 
 ## Further reading

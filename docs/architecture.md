@@ -223,8 +223,38 @@ applies `migrations/` via `readD1Migrations`). Two layers, under `test/`:
 
 Run with `npm test` (`npm run test:watch` to watch). The confirm-scan path marks the encounter
 timer elapsed directly in D1 (the same `UPDATE` the DurableRoom alarm runs) so it is
-deterministic without waiting. WebSocket endpoints and the Alpine front-end are **not** covered
-by the suite; `scripts/simulate.ts` remains a manual load/smoke tool (`npm run simulate`).
+deterministic without waiting.
+
+#### End-to-end (`e2e/`, Playwright)
+
+The Alpine front-end and the live WebSocket path are covered by a separate **Playwright**
+suite under `e2e/`, run with `npm run test:e2e` (a `pretest:e2e` hook applies the migrations
+to the local D1; Playwright then auto-starts `wrangler dev` on `:8787`). Each test drives one
+or more real browser contexts — one per "phone" — so a scan is performed by navigating the
+scan URL directly (the camera is never used, matching `init()`'s cold-deep-link path). Screens
+are selected via `data-test` attributes (`testIdAttribute: 'data-test'`); live state (`me`,
+`qrToken`, `wsStatus`, `scoreData`) is read from the Alpine component via `window.Alpine.$data`.
+Shared fixtures live in `e2e/helpers.ts`. The suite is split by theme:
+
+- **`encounter.spec.ts`** — the meeting mechanics: the **session screen appears for both roles**
+  (scanner via the HTTP `started` response, scannee via the `session_start` push), confirmation,
+  re-scan rejection, the busy guard, single-use QR tokens, `token_refresh`, the restore of a
+  notified-but-unconfirmed session after reload (the DO keeps the encounter and re-pushes
+  `session_start` until confirmed), and a paused game rejecting scans.
+- **`session.spec.ts`** — identity, entry and connection lifecycle: join via the landing code
+  input, resume from the landing page, profile-name persistence (server + localStorage), an
+  active session surviving a reload, a stale session cleared on reconnect (the `connected`
+  path), cross-room gating, and the reconnect indicator.
+- **`treasure.spec.ts`** — the four treasure cases (cold auto-join vs. existing player, re-claim,
+  cross-room).
+
+Two things can't be tested deterministically here and are left to the Vitest layer or manual
+checks: the simultaneous mutual-scan 409 race and the server/client clock-offset adjustment in
+`doScan`. A real network drop also can't be simulated against loopback (Chromium's offline
+emulation ignores localhost and `ws.close()` leaves the Durable Object socket in `CLOSING`), so
+the connection test simulates the lost socket and asserts `connectWs()` recovers the indicator.
+
+`scripts/simulate.ts` remains a manual load/smoke tool (`npm run simulate`).
 
 ---
 

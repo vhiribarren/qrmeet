@@ -46,7 +46,7 @@ SOFTWARE.
   <div id="app" x-data="qrmeet" x-cloak>
 
     <!-- ── SESSION BANNER ── -->
-    <div class="session-banner" x-show="session">
+    <div class="session-banner" x-show="session" data-test="session-banner">
       <div class="session-banner__inner">
         <div class="session-banner__info" x-show="session && !session.confirmed">
           <span class="session-banner__partner">
@@ -141,7 +141,7 @@ SOFTWARE.
     </div>
 
     <!-- ── CARD PAGE ── -->
-    <div class="page page--with-nav" x-show="page === 'card'" x-transition:enter="page-enter">
+    <div class="page page--with-nav" x-show="page === 'card'" x-transition:enter="page-enter" data-test="page-card">
       <div class="card-page">
 
         <!-- Install Banner -->
@@ -185,12 +185,12 @@ SOFTWARE.
           </div>
 
           <div class="name" @click.stop>
-            <div x-show="!editingName" class="name__display" @click="editingName = true">
+            <div x-show="!editingName" class="name__display" @click="editingName = true" data-test="name-display">
               <span x-text="me?.displayName ?? 'Tap to set name'"></span>
               <span class="name__edit-hint">✏️</span>
             </div>
             <div x-show="editingName" class="name__edit">
-              <input type="text" x-model="nameInput" maxlength="40" placeholder="Your name"
+              <input type="text" x-model="nameInput" maxlength="40" placeholder="Your name" data-test="name-input"
                 @keyup.enter="saveName()" @blur="saveName()" x-ref="nameInput"
                 x-init="$watch('editingName', v => v && $nextTick(() => $refs.nameInput?.focus()))">
             </div>
@@ -199,7 +199,7 @@ SOFTWARE.
           <div class="qr">
             <!-- Active session with time remaining: show chat indicator instead of QR -->
             <template x-if="session && !session.confirmed && sessionSecondsLeft > 0">
-              <div class="session-active">
+              <div class="session-active" data-test="session-active">
                 <div class="session-active__emoji" x-text="session.partnerEmoji"></div>
                 <p class="session-active__label">Chatting with <strong x-text="session.partnerName"></strong></p>
                 <p class="session-active__timer" :class="{ 'session-active__timer--urgent': sessionSecondsLeft <= 30 }">
@@ -382,26 +382,26 @@ SOFTWARE.
           <p class="scan__partner-name" x-text="session?.partnerName"></p>
           <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
         </div>
-        <div x-show="scanState === 'confirmed'" class="scan__confirmed">
+        <div x-show="scanState === 'confirmed'" class="scan__confirmed" data-test="scan-confirmed">
           <div>✅</div>
           <h2>Meeting confirmed!</h2>
           <p>+1 point for both of you!</p>
           <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
         </div>
-        <div x-show="scanState === 'treasure'" class="scan__success">
+        <div x-show="scanState === 'treasure'" class="scan__success" data-test="scan-treasure">
           <div class="scan__emoji">🏆</div>
           <h2 x-text="'+' + treasureAward.points + (treasureAward.points === 1 ? ' point!' : ' points!')"></h2>
           <p x-show="treasureAward.label" x-text="treasureAward.label"></p>
           <p x-show="!treasureAward.label">Treasure found!</p>
           <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
         </div>
-        <div x-show="scanState === 'treasure_dup'" class="scan__confirmed">
+        <div x-show="scanState === 'treasure_dup'" class="scan__confirmed" data-test="scan-treasure-dup">
           <div>🏆</div>
           <h2>Already collected</h2>
           <p>You've already grabbed this treasure.</p>
           <button class="btn btn--primary" @click="goTo('card')">Back to my card</button>
         </div>
-        <div x-show="scanState === 'error'" class="scan__error">
+        <div x-show="scanState === 'error'" class="scan__error" data-test="scan-error">
           <div>❌</div>
           <h2>Scan failed</h2>
           <p x-text="scanError"></p>

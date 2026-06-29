@@ -24,6 +24,9 @@ export default defineConfig(async () => {
       }),
     ],
     test: {
+      // Scope Vitest to the worker suite; the Playwright e2e/ specs run separately
+      // via `npm run test:e2e` and must not be collected here.
+      include: ['test/**/*.{test,spec}.ts'],
       setupFiles: ['./test/apply-migrations.ts'],
       // Suppress worker console output for passing tests; keep it when a test fails.
       silent: 'passed-only',
