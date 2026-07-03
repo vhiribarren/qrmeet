@@ -70,7 +70,7 @@ npm run dev          # wrangler dev on http://localhost:8787
 ### Tests
 
 ```bash
-npm test             # Vitest — unit + Workers integration (no extra setup)
+npm test             # Vitest — Workers (unit + integration) + front-end component logic (no extra setup)
 npm run test:e2e     # Playwright — front-end & WebSocket end-to-end
 ```
 
@@ -131,8 +131,9 @@ The Durable Object (`DurableRoom`) is registered automatically via the `[[migrat
 | `npm run deploy` | Deploy to Cloudflare |
 | `npm run db:migrate` | Apply D1 migrations locally |
 | `npm run db:migrate -- --remote` | Apply D1 migrations on production |
-| `npm test` | Run the Vitest suite (unit + Workers integration tests) |
+| `npm test` | Run the Vitest suite — `workers` (unit + Workers integration) and `frontend` (Alpine component logic) projects |
 | `npm run test:watch` | Run the test suite in watch mode |
+| `npm run test:frontend` / `npm run test:workers` | Run a single Vitest project |
 | `npm run test:e2e` | Run the Playwright end-to-end suite (front-end + WebSocket; auto-starts `wrangler dev`) |
 | `npm run simulate -- --create-room` | Simulate users and encounters against a running instance (use `--room <id>` to target an existing room) |
 

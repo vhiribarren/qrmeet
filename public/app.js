@@ -76,7 +76,7 @@ function randomEmoji() {
 // plus the real navigation on the same device send the same token and collapse
 // to one account, while distinct people (even on the same IP) get distinct
 // tokens. 256 bits of entropy keeps the bearer token unguessable.
-function genPrivateToken() {
+export function genPrivateToken() {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
@@ -95,7 +95,7 @@ async function apiFetch(url, options = {}) {
   return { ok: res.ok, status: res.status, data }
 }
 
-function qrmeet() {
+export function qrmeet() {
   return {
     // ── State ──
     page: 'loading',

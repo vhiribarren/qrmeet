@@ -8,28 +8,46 @@ export default defineConfig(async () => {
   const migrations = await readD1Migrations(path.join(__dirname, 'migrations'))
 
   return {
-    plugins: [
-      cloudflareTest({
-        // Reuse the real bindings (DB, QR_TOKENS, DURABLE_ROOM, ASSETS) and [vars].
-        wrangler: { configPath: './wrangler.toml' },
-        miniflare: {
-          bindings: {
-            // Consumed by test/apply-migrations.ts.
-            TEST_MIGRATIONS: migrations,
-            // Encounters expire immediately so the confirm path can be driven by
-            // firing the Durable Object alarm, with no real waiting.
-            ENCOUNTER_DURATION_SECONDS: '0',
+    test: {
+      projects: [
+        {
+          // Worker suite — runs inside the real workerd runtime with live D1/DO bindings.
+          plugins: [
+            cloudflareTest({
+              // Reuse the real bindings (DB, QR_TOKENS, DURABLE_ROOM, ASSETS) and [vars].
+              wrangler: { configPath: './wrangler.toml' },
+              miniflare: {
+                bindings: {
+                  // Consumed by test/apply-migrations.ts.
+                  TEST_MIGRATIONS: migrations,
+                  // Encounters expire immediately so the confirm path can be driven by
+                  // firing the Durable Object alarm, with no real waiting.
+                  ENCOUNTER_DURATION_SECONDS: '0',
+                },
+              },
+            }),
+          ],
+          test: {
+            name: 'workers',
+            include: ['test/unit/**/*.{test,spec}.ts', 'test/integration/**/*.{test,spec}.ts'],
+            setupFiles: ['./test/apply-migrations.ts'],
+            // Suppress worker console output for passing tests; keep it when a test fails.
+            silent: 'passed-only',
           },
         },
-      }),
-    ],
-    test: {
-      // Scope Vitest to the worker suite; the Playwright e2e/ specs run separately
-      // via `npm run test:e2e` and must not be collected here.
-      include: ['test/**/*.{test,spec}.ts'],
-      setupFiles: ['./test/apply-migrations.ts'],
-      // Suppress worker console output for passing tests; keep it when a test fails.
-      silent: 'passed-only',
+        {
+          // Front-end component logic — the Alpine factory (public/app.js) instantiated
+          // in a happy-dom DOM with fetch/WebSocket/crypto stubbed. Covers the
+          // deterministic-only branches the Playwright e2e suite cannot reach (the 409
+          // mutual-scan race, clock-offset, the scanned-URL parser, the QR retry timer).
+          test: {
+            name: 'frontend',
+            include: ['test/frontend/**/*.{test,spec}.ts'],
+            environment: 'happy-dom',
+            silent: 'passed-only',
+          },
+        },
+      ],
     },
   }
 })

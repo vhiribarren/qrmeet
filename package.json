@@ -10,6 +10,8 @@
     "simulate": "tsx scripts/simulate.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:frontend": "vitest run --project frontend",
+    "test:workers": "vitest run --project workers",
     "pretest:e2e": "wrangler d1 migrations apply qrmeet-db --local",
     "test:e2e": "playwright test"
   },
@@ -22,6 +24,7 @@
     "@cloudflare/vitest-pool-workers": "^0.16.18",
     "@cloudflare/workers-types": "^4.20241205.0",
     "@playwright/test": "^1.61.1",
+    "happy-dom": "^20.10.6",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "vitest": "^4.1.9",

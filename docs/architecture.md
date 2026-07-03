@@ -211,19 +211,29 @@ Never inline the auth check; always delegate to `verifyAdmin()` in `worker/route
 
 ### Testing
 
-Automated tests run with **Vitest** on the `@cloudflare/vitest-pool-workers` pool — tests
-execute inside the real `workerd` runtime with live D1/Durable Object bindings, and each
-test gets isolated storage seeded from the project migrations (`test/apply-migrations.ts`
-applies `migrations/` via `readD1Migrations`). Two layers, under `test/`:
+Automated tests run with **Vitest**, split into two projects (`test.projects` in
+`vitest.config.ts`) so `npm test` runs both:
 
-- **Unit** (`test/unit/`): pure helpers — `settings`, `ids`, `questions`, `auth`.
-- **Integration** (`test/integration/`): the Hono routes end-to-end via `SELF.fetch()` with
-  real bindings — rooms, users, the scan/encounter lifecycle, treasure hunt, admin (auth,
-  settings, treasure CRUD, renew, purge), and the public board's unified scoring.
+- **`workers`** — executes inside the real `workerd` runtime on the
+  `@cloudflare/vitest-pool-workers` pool, with live D1/Durable Object bindings; each test gets
+  isolated storage seeded from the project migrations (`test/apply-migrations.ts` applies
+  `migrations/` via `readD1Migrations`). Two layers:
+  - **Unit** (`test/unit/`): pure helpers — `settings`, `ids`, `questions`, `auth`.
+  - **Integration** (`test/integration/`): the Hono routes end-to-end via `SELF.fetch()` with
+    real bindings — rooms, users, the scan/encounter lifecycle, treasure hunt, admin (auth,
+    settings, treasure CRUD, renew, purge), and the public board's unified scoring.
+- **`frontend`** (`test/frontend/`, `happy-dom` environment): the Alpine factory from
+  `public/app.js` (exported as `qrmeet()`) instantiated as a plain object with `fetch`/the
+  clock/collaborators stubbed. It covers the deterministic-only client branches the Playwright
+  e2e suite can't drive — the 409 mutual-scan reconciliation and clock-offset in `doScan`, each
+  `handleWsMessage` branch, the camera-only `_handleScannedUrl` parser, the `refreshQrToken`
+  retry timer (fake timers), and the pure helpers (`formatTime`, `genPrivateToken`,
+  `hashPassword`).
 
-Run with `npm test` (`npm run test:watch` to watch). The confirm-scan path marks the encounter
-timer elapsed directly in D1 (the same `UPDATE` the DurableRoom alarm runs) so it is
-deterministic without waiting.
+Run all with `npm test` (`npm run test:watch` to watch; `npm run test:frontend` /
+`test:workers` for a single project). The confirm-scan path marks the encounter timer elapsed
+directly in D1 (the same `UPDATE` the DurableRoom alarm runs) so it is deterministic without
+waiting.
 
 #### End-to-end (`e2e/`, Playwright)
 
@@ -248,11 +258,12 @@ Shared fixtures live in `e2e/helpers.ts`. The suite is split by theme:
 - **`treasure.spec.ts`** — the four treasure cases (cold auto-join vs. existing player, re-claim,
   cross-room).
 
-Two things can't be tested deterministically here and are left to the Vitest layer or manual
-checks: the simultaneous mutual-scan 409 race and the server/client clock-offset adjustment in
-`doScan`. A real network drop also can't be simulated against loopback (Chromium's offline
-emulation ignores localhost and `ws.close()` leaves the Durable Object socket in `CLOSING`), so
-the connection test simulates the lost socket and asserts `connectWs()` recovers the indicator.
+Two things can't be tested deterministically through real browsers and are instead covered by
+the `frontend` Vitest project: the simultaneous mutual-scan 409 race and the server/client
+clock-offset adjustment in `doScan`. A real network drop also can't be simulated against
+loopback (Chromium's offline emulation ignores localhost and `ws.close()` leaves the Durable
+Object socket in `CLOSING`), so the connection test simulates the lost socket and asserts
+`connectWs()` recovers the indicator.
 
 `scripts/simulate.ts` remains a manual load/smoke tool (`npm run simulate`).
 
