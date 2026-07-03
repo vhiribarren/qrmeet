@@ -33,6 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate local wrangler.toml
+        # wrangler.toml is gitignored; the vitest-pool-workers config reads it
+        # to boot workerd, so the sample is enough for tests (no real D1 needed).
+        run: cp wrangler.sample.toml wrangler.toml
+
       - name: Run unit and integration tests
         run: npm test
 
