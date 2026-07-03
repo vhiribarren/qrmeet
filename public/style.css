@@ -882,6 +882,8 @@ emoji-picker {
 
 /* ── Treasure print area: hidden on screen, only shown when printing ── */
 .treasure-print { display: none; }
+/* ── Room QR print area (Join tab): hidden on screen, fills the A4 page when printing ── */
+.room-print { display: none; }
 @media print {
   body * { visibility: hidden; }
   .treasure-print, .treasure-print * { visibility: visible; }
@@ -898,4 +900,17 @@ emoji-picker {
   .treasure-card__room { font-weight: 700; font-size: 22px; margin-bottom: 8px; word-break: break-word; }
   .treasure-card__label { font-weight: 700; font-size: 15px; margin-top: 6px; }
   .treasure-card__meta { font-size: 11px; color: #555; margin-top: 4px; word-break: break-all; }
+
+  .room-print, .room-print * { visibility: visible; }
+  .room-print {
+    display: flex; align-items: center; justify-content: center;
+    position: absolute; inset: 0;
+  }
+  .room-print__card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 100%; height: 100%; gap: 32px;
+  }
+  .room-print__name { font-weight: 700; font-size: 42px; text-align: center; word-break: break-word; }
+  .room-print__qr img { width: min(85vw, 75vh); height: min(85vw, 75vh); }
+  @page { size: A4; margin: 15mm; }
 }

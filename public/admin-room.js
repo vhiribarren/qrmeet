@@ -386,6 +386,24 @@ function adminApp() {
       container.innerHTML = qr.createImgTag(5, 0)
     },
 
+    // Render the room's join QR code into the hidden print area, then open the
+    // browser print dialog. The @media print CSS fills the whole A4 page with it.
+    printRoomQr() {
+      const container = document.getElementById('room-print')
+      if (!container) return
+      const roomName = (this.settingsName || '').trim()
+      const url = `${window.location.origin}/r/${this.roomId}`
+      const qr = qrcode(0, 'M')
+      qr.addData(url)
+      qr.make()
+      container.innerHTML = `
+        <div class="room-print__card">
+          ${roomName ? `<div class="room-print__name">${escapeHtml(roomName)}</div>` : ''}
+          <div class="room-print__qr">${qr.createImgTag(10, 0)}</div>
+        </div>`
+      this.$nextTick(() => window.print())
+    },
+
     copyUrl() {
       const url = `${window.location.origin}/r/${this.roomId}`
       navigator.clipboard.writeText(url).then(() => {
