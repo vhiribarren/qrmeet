@@ -1,0 +1,78 @@
+# CI tests: fast unit/integration suite (Vitest) and the end-to-end suite
+# (Playwright). Both gate merges into `main`: enable them as required status
+# checks in the branch protection rules. Deployment itself is handled separately
+# by Cloudflare Workers Builds, which does not wait for this workflow.
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+  # Safety net: also run on direct pushes to main.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push to the same branch/PR cancels the in-flight run.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    # Vitest `workers` (unit + Workers integration, via workerd) and `frontend`
+    # projects. No browser or `wrangler dev` needed, so this is quick.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit and integration tests
+        run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      # wrangler.toml is gitignored; local-mode dev/migrations only need the
+      # placeholder database_id from the sample config.
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate local wrangler.toml
+        # In CI wrangler.toml is not committed; the sample is enough for
+        # `wrangler dev` / migrations in local mode (the database_id is unused).
+        run: cp wrangler.sample.toml wrangler.toml
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        # `pretest:e2e` applies the D1 migrations locally; Playwright's
+        # webServer then boots `wrangler dev` on :8787.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
