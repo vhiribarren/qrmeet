@@ -111,6 +111,7 @@ SOFTWARE.
             <button class="copy-url-btn" @click="copyUrl()">
               <span x-text="copied ? '✓ Copied!' : '📋 Copy Room URL'"></span>
             </button>
+            <button class="btn btn--ghost" @click="printRoomQr()">🖨 Print QR code (A4)</button>
           </div>
         </div>
 
@@ -335,6 +336,9 @@ SOFTWARE.
 
     <!-- Hidden print area: populated by printTreasures(), shown only when printing -->
     <div class="treasure-print" id="treasure-print"></div>
+
+    <!-- Hidden print area: populated by printRoomQr(), shown only when printing -->
+    <div class="room-print" id="room-print"></div>
   </div>
 </body>
 </html>
