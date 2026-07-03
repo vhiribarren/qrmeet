@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "gen:wrangler": "node scripts/gen-wrangler.mjs",
     "db:migrate": "wrangler d1 migrations apply qrmeet-db",
     "simulate": "tsx scripts/simulate.ts",
     "test": "vitest run",

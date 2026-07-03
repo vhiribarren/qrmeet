@@ -76,7 +76,7 @@ npm run test:e2e     # Playwright — front-end & WebSocket end-to-end
 
 The Playwright suite (`e2e/`) drives real browser contexts against a live `wrangler dev`. Two one-time prerequisites:
 
-- A local `wrangler.toml` (copy `wrangler.toml.sample`) — same requirement as `npm run dev`.
+- A local `wrangler.toml` (copy `wrangler.sample.toml`) — same requirement as `npm run dev`.
 - The browser binary: `npx playwright install chromium` (the `@playwright/test` package itself comes with `npm install`).
 
 `npm run test:e2e` then handles the rest itself: it applies the local D1 migrations (`pretest:e2e` hook) and starts `wrangler dev` on `:8787` automatically (reusing an already-running one if present).
@@ -85,7 +85,7 @@ The Playwright suite (`e2e/`) drives real browser contexts against a live `wrang
 
 ### 0. Create configuration file
 
-First, copy `wrangler.toml.sample` to a local `wrangler.toml`.
+First, copy `wrangler.sample.toml` to a local `wrangler.toml`.
 It is declared in the `.gitignore` file, so this is local only.
 
 ### 1. Authenticate
@@ -123,12 +123,35 @@ npm run deploy
 
 The Durable Object (`DurableRoom`) is registered automatically via the `[[migrations]]` block in `wrangler.toml` — no extra step needed.
 
+### Continuous deployment (Cloudflare Workers Builds)
+
+`wrangler.toml` is gitignored, so it is never committed — that keeps your own
+`database_id` and custom domain out of the (public) repository. To let
+[Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)
+deploy on every push, the config is generated at build time from
+`wrangler.ci.toml` (committed, with `${DATABASE_ID}` / `${DEPLOY_DOMAIN}`
+placeholders) by `scripts/gen-wrangler.mjs`.
+
+In the Workers Builds settings of your Cloudflare project:
+
+- **Build command:** `npm ci && npm run gen:wrangler`
+- **Deploy command:** `npx wrangler deploy` (the default)
+- **Build variables** (encrypted — these hold the values kept out of the repo):
+  - `DATABASE_ID` — the D1 database id from `wrangler d1 create`
+  - `DEPLOY_DOMAIN` — the custom domain the worker is routed to (e.g. `qrmeet.example.net`)
+
+Any additional value you want to keep private can be turned into a
+`${PLACEHOLDER}` in `wrangler.ci.toml` and supplied the same way. Real secrets
+(API tokens, keys) must **never** go in `wrangler.ci.toml` — use
+`npx wrangler secret put` or the dashboard instead.
+
 ## Scripts
 
 | Command | Description |
 |---|---|
 | `npm run dev` | Local dev server (wrangler, port 8787) |
 | `npm run deploy` | Deploy to Cloudflare |
+| `npm run gen:wrangler` | Generate `wrangler.toml` from `wrangler.ci.toml` (used by CI; needs `DATABASE_ID` / `DEPLOY_DOMAIN` env vars) |
 | `npm run db:migrate` | Apply D1 migrations locally |
 | `npm run db:migrate -- --remote` | Apply D1 migrations on production |
 | `npm test` | Run the Vitest suite — `workers` (unit + Workers integration) and `frontend` (Alpine component logic) projects |

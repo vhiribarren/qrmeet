@@ -1,0 +1,70 @@
+# Template used by CI (Cloudflare Workers Builds) to generate wrangler.toml.
+# Do NOT edit the generated wrangler.toml by hand in CI — edit this file.
+#
+# The dollar-brace placeholders below are substituted from environment variables
+# by scripts/gen-wrangler.mjs (run as the Cloudflare build command). The
+# deployment-specific values are kept OUT of the public repo and set as encrypted
+# build variables in the Cloudflare Workers Builds settings instead:
+#   DATABASE_ID    — the D1 database id (`wrangler d1 create` output)
+#   DEPLOY_DOMAIN  — the custom domain the worker is routed to
+#
+# For local development, do NOT use this file: copy wrangler.sample.toml to
+# wrangler.toml and fill in your own values.
+
+name = "qrmeet"
+main = "worker/index.ts"
+compatibility_date = "2026-05-27"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "none"
+not_found_handling = "none"
+# run_worker_first is intentionally omitted (defaults to false).
+# Static assets (JS, CSS) are served directly from the edge without invoking the
+# worker. HTML pages are always routed through the worker
+# (/r/:id, /r/:id/admin, /r/:id/board), which is where CSP headers are injected.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "qrmeet-db"
+database_id = "${DATABASE_ID}"
+
+[durable_objects]
+bindings = [
+  { name = "DURABLE_ROOM", class_name = "DurableRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DurableRoom"]
+
+[triggers]
+# Hourly cleanup of expired rooms (see scheduled() in worker/index.ts)
+crons = ["0 * * * *"]
+
+[vars]
+ENCOUNTER_DURATION_SECONDS = "180"
+MAX_PARTICIPANTS = "150"
+ROOM_TTL_DAYS = "7"
+TREASURE_DEFAULT_POINTS = "2"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
+
+[[routes]]
+pattern = "${DEPLOY_DOMAIN}"
+custom_domain = true
