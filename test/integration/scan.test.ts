@@ -139,6 +139,34 @@ describe('scan / encounter lifecycle', () => {
     expect(sb.data.score).toBe(1)
   })
 
+  it('atomic burn: two concurrent scans of the same displayed QR start only one session', async () => {
+    // Two people photograph/scan A's card at nearly the same instant, so both
+    // requests carry the same single-use token. Check-then-burn would let both
+    // pass the token check (and the busy guard, read before either insert) and
+    // put A in two simultaneous conversations. The conditional burn makes the
+    // token consumption atomic: exactly one request wins, the other is rejected.
+    const { roomId } = await createRoom()
+    const [a, c, d] = [await joinUser(roomId), await joinUser(roomId), await joinUser(roomId)]
+    const token = await issueQrToken(roomId, a) // A's one displayed QR
+
+    const scanA = (scanner: typeof c) => fetchWorker(`${BASE}/api/rooms/${roomId}/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-private-token': scanner.privateToken },
+      body: JSON.stringify({ scanneePublicId: a.publicId, qrToken: token }),
+    })
+    const [resC, resD] = await Promise.all([scanA(c), scanA(d)])
+    const [dataC, dataD] = [await resC.json<any>(), await resD.json<any>()]
+
+    const started = [dataC, dataD].filter((r) => r.action === 'started')
+    expect(started.length).toBe(1)
+
+    // The invariant behind the busy guard: A holds at most one encounter.
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM encounters WHERE room_id = ? AND (user_a_id = ? OR user_b_id = ?)'
+    ).bind(roomId, a.publicId, a.publicId).first<{ n: number }>()
+    expect(row?.n).toBe(1)
+  })
+
   it('still rejects starting a new encounter with an invalid token', async () => {
     // The token check must remain strict for *new* encounters even though it is
     // now relaxed on the confirmation path.

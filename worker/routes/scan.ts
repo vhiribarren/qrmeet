@@ -125,7 +125,9 @@ scan.post('/', async (c) => {
   // No existing encounter for this pair — starting a *new* one requires a valid,
   // freshly issued single-use QR token. The token lives on the scannee's users
   // row (strongly consistent in D1), so a freshly issued token is never read back
-  // stale the way it could be from KV. Only burn it once we're sure we'll proceed.
+  // stale the way it could be from KV. This read is only a pre-check for a
+  // friendly early rejection; the authoritative consumption is the conditional
+  // burn below, and it only runs once we're sure we'll proceed.
   if (!scannee.qr_token || scannee.qr_token !== body.qrToken) {
     console.info('encounter.rejected', { room: roomId, reason: 'invalid_qr_token', scanner: scanner.public_id, scannee: scannee.public_id })
     return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
@@ -154,10 +156,20 @@ scan.post('/', async (c) => {
     }, 409)
   }
 
-  // New encounter — burn token
-  await c.env.DB.prepare(
-    'UPDATE users SET qr_token = NULL WHERE public_id = ?'
-  ).bind(scannee.public_id).run()
+  // New encounter — burn the token atomically. The pre-check above is not
+  // enough on its own: two people scanning the same displayed QR at almost the
+  // same instant would both read the token as valid (and both pass the busy
+  // guard, which runs before either insert), putting the scannee in two
+  // simultaneous conversations. Re-checking the token inside the UPDATE makes
+  // the consumption atomic: exactly one request flips the row, the other sees
+  // zero changes and is rejected as an expired code.
+  const burn = await c.env.DB.prepare(
+    'UPDATE users SET qr_token = NULL WHERE public_id = ? AND qr_token = ?'
+  ).bind(scannee.public_id, body.qrToken).run()
+  if (!burn.meta.changes) {
+    console.info('encounter.rejected', { room: roomId, reason: 'qr_token_race_lost', scanner: scanner.public_id, scannee: scannee.public_id })
+    return c.json({ error: 'Invalid or expired QR code. Ask them to refresh their card.' }, 400)
+  }
   const stub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
   // The scannee's displayed QR is now dead; tell their client to re-issue one.
   // Sent here (right after the burn) so it covers the concurrent-insert path too.

@@ -301,7 +301,7 @@ Encounter timers require a server-side alarm that fires reliably after N seconds
 
 The per-user scan token lives in `users.qr_token` (D1), not KV. KV is only **eventually consistent**: a token written by `POST …/qr-token` can read back stale (or as the just-deleted value) from a different edge location for up to ~60 s. Since scan verification is read-after-write critical, that surfaced as "Invalid or expired QR code" on a QR the user had just refreshed. D1 is strongly consistent, so the freshly issued token is always visible.
 
-Single-use enforcement is still cheap: the token is set `NULL` on first successful scan, preventing replay without a separate "used" flag. No expiry is needed — the token is single-use and rotated on every encounter event, and it lives on the existing user row (nothing to garbage-collect).
+Single-use enforcement is still cheap: the token is set `NULL` on first successful scan, preventing replay without a separate "used" flag. The consumption is atomic — the burn is a conditional `UPDATE … WHERE qr_token = ?` and the scan is rejected when it changes no row — so two people scanning the same displayed QR at the same instant cannot both start an encounter (a plain check-then-burn would let both pass the check *and* the busy guard, putting the scannee in two conversations at once). No expiry is needed — the token is single-use and rotated on every encounter event, and it lives on the existing user row (nothing to garbage-collect).
 
 ### No `ON DELETE CASCADE` on encounters
 
