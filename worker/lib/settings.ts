@@ -65,7 +65,7 @@ export function resolveSettings(settings: RoomSettings, env: Env) {
     encounterDurationSeconds: settings.encounterDurationSeconds
                                 ?? parseInt(env.ENCOUNTER_DURATION_SECONDS || '300'),
     maxParticipants:          settings.maxParticipants
-                                ?? parseInt(env.MAX_PARTICIPANTS || '100'),
+                                ?? parseInt(env.MAX_PARTICIPANTS || '200'),
     treasureHuntEnabled:      settings.treasureHuntEnabled,
     treasureDefaultPoints:    settings.treasureDefaultPoints,
     boardTopSize:             settings.boardTopSize,

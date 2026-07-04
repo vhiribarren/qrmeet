@@ -110,7 +110,7 @@ admin.get('/rooms/:roomId/settings', async (c) => {
   const settings = parseSettings(room.settings)
   const resolved = resolveSettings(settings, c.env)
   const defaultDuration    = parseInt(c.env.ENCOUNTER_DURATION_SECONDS || '300')
-  const defaultMaxParticipants = parseInt(c.env.MAX_PARTICIPANTS || '100')
+  const defaultMaxParticipants = parseInt(c.env.MAX_PARTICIPANTS || '200')
 
   return c.json({
     name: room.name,
