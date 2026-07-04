@@ -22,3 +22,6 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 ### Added
 
 - First version
+
+[Unreleased]: https://github.com/vhiribarren/qrmeet/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/vhiribarren/qrmeet/releases/tag/v1.0.0

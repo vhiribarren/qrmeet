@@ -3,9 +3,9 @@
     "before:init": ["npm test", "npm run test:e2e"]
   },
   "git": {
-    "commitMessage": "release: update to v${version}",
+    "commitMessage": "release: update to v${version}\n\n${changelog}",
     "tagName": "v${version}",
-    "tagAnnotation": "Release ${version}",
+    "tagAnnotation": "Release ${version}\n\n${changelog}",
     "requireBranch": "main"
   },
   "github": {
@@ -18,7 +18,7 @@
     "@release-it/keep-a-changelog": {
       "filename": "CHANGELOG.md",
       "addUnreleased": true,
-      "strictLatest": false
+      "addVersionUrl": true
     }
   }
 }
