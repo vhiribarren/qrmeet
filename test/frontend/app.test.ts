@@ -150,6 +150,25 @@ describe('handleWsMessage', () => {
     expect(app.loadScore).not.toHaveBeenCalled()
   })
 
+  it('session_cancelled releases the matching session', () => {
+    const app = makeApp({ session: { encounterId: 'e1', confirmed: false, endsAt: 1 } })
+
+    app.handleWsMessage({ type: 'session_cancelled', encounterId: 'e1', message: 'cancelled' })
+
+    expect(app.session).toBeNull()
+    expect(app.showToast).toHaveBeenCalled()
+    expect(app.loadScore).toHaveBeenCalled()
+  })
+
+  it('session_cancelled for another encounter leaves the current session alone', () => {
+    const app = makeApp({ session: { encounterId: 'e2', confirmed: false, endsAt: 1 } })
+
+    app.handleWsMessage({ type: 'session_cancelled', encounterId: 'e1', message: 'cancelled' })
+
+    expect(app.session).not.toBeNull()
+    expect(app.loadScore).not.toHaveBeenCalled()
+  })
+
   it('token_refresh re-issues the QR token', () => {
     const app = makeApp()
 

@@ -220,6 +220,32 @@ export class DurableRoom extends DurableObject<Env> {
     this.sendToUser(userId, JSON.stringify({ type: 'token_refresh' }))
   }
 
+  // Purge every active encounter involving a user (admin deleted them). Without
+  // this, the D1 rows are gone but the encounter would linger here and be
+  // re-pushed as session_start to the partner on every reconnect — a ghost
+  // session that can never be confirmed. The partner (and the deleted user's
+  // own device) get a session_cancelled so their UI releases the conversation.
+  async removeUserEncounters(userId: string): Promise<void> {
+    await this.ensureInitialized()
+    for (const enc of [...this.encounters.values()]) {
+      if (enc.userAId !== userId && enc.userBId !== userId) continue
+      this.encounters.delete(enc.encounterId)
+      this.ctx.storage.sql.exec(
+        'DELETE FROM active_encounters WHERE encounter_id = ?',
+        enc.encounterId
+      )
+      const msg = JSON.stringify({
+        type: 'session_cancelled',
+        encounterId: enc.encounterId,
+        message: 'Your conversation was cancelled by the organiser.',
+      })
+      this.sendToUser(enc.userAId, msg)
+      this.sendToUser(enc.userBId, msg)
+      console.info('encounter.cancelled', { room: this.ctx.id.name, encounter: enc.encounterId, user: userId })
+    }
+    await this.scheduleNextAlarm()
+  }
+
   async cleanup(): Promise<void> {
     await this.ensureInitialized()
     this.encounters.clear()

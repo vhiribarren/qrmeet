@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { createRoom, joinUser, claimTreasure, createTreasure, getScore, admin, fetchWorker, BASE } from '../helpers'
+import { runInDurableObject } from 'cloudflare:test'
+import { createRoom, joinUser, claimTreasure, createTreasure, getScore, scan, admin, fetchWorker, env, BASE } from '../helpers'
 
 describe('admin auth', () => {
   it('rejects requests without an admin token', async () => {
@@ -106,6 +107,24 @@ describe('admin destructive ops', () => {
 
     const board = await fetchWorker(`${BASE}/api/rooms/${roomId}/board/scores`)
     expect(((await board.json()) as any).totalParticipants).toBe(0)
+  })
+
+  it('deleting a user mid-encounter also purges it from the DurableRoom', async () => {
+    const { roomId, adminToken } = await createRoom()
+    const [u, partner] = [await joinUser(roomId), await joinUser(roomId)]
+    await scan(roomId, partner, u) // active encounter, registered in the DO
+
+    const del = await admin(roomId, adminToken).del(`/users/${u.publicId}`)
+    expect(del.res.status).toBe(200)
+
+    // Without the DO purge the encounter would survive here and be re-pushed as
+    // session_start to the partner on every reconnect — unconfirmable forever,
+    // since the deleted participant no longer exists in D1.
+    const stub = env.DURABLE_ROOM.get(env.DURABLE_ROOM.idFromName(roomId))
+    const remaining = await runInDurableObject(stub, (instance: any) =>
+      Number(instance.ctx.storage.sql.exec('SELECT COUNT(*) AS n FROM active_encounters').one().n)
+    )
+    expect(remaining).toBe(0)
   })
 
   it('deleting a room purges it', async () => {

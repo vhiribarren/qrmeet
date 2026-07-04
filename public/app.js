@@ -949,6 +949,19 @@ export function qrmeet() {
         this.loadScore()
       }
 
+      // The organiser deleted one of the two participants: the encounter is gone
+      // server-side and can never be confirmed, so release the conversation.
+      // Guarded by encounterId so a cancellation for an older session can't
+      // clobber a newer one started since.
+      if (msg.type === 'session_cancelled') {
+        if (this.session?.encounterId === msg.encounterId) {
+          this.session = null
+          clearInterval(this.sessionTimer)
+          this.showToast(msg.message || 'Your conversation was cancelled by the organiser.')
+          this.loadScore()
+        }
+      }
+
       // The server burned this user's QR token (someone scanned them), so the
       // QR currently on their card is dead — re-issue a fresh one. This is the
       // single, explicit signal for a server-side burn; it is sent only to the

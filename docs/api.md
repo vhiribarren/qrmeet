@@ -353,7 +353,7 @@ Permanently delete the room and all its data (encounters, users, questions, trea
 ---
 
 ### `DELETE /api/admin/rooms/:roomId/users/:uid`
-Remove a user. Their encounters are deleted first to avoid foreign key constraint errors.
+Remove a user. Their encounters are deleted first to avoid foreign key constraint errors. Any active encounter involving them is also purged from the room's Durable Object, and both participants receive a `session_cancelled` WebSocket push so a partner mid-conversation is released instead of being left with a ghost session that can never be confirmed.
 
 **Response `200`**
 ```json
@@ -473,6 +473,7 @@ The connection is proxied to the room's `DurableRoom` instance. The user stays c
 | `session_start` | Encounter created (push) or reconnect with active session | `encounterId`, `endsAt`, `serverTime`, `partnerName`, `partnerEmoji`, `question` |
 | `session_end` | Timer elapses (Durable Object alarm) | `encounterId`, `message` |
 | `session_confirmed` | Meeting confirmed via second scan | `encounterId` |
+| `session_cancelled` | The organiser deleted one of the two participants — the encounter is void and can never be confirmed; the client releases the conversation | `encounterId`, `message` |
 | `token_refresh` | This user's QR token was just burned by someone scanning it — client re-issues a fresh one via `POST …/qr-token` | — |
 | `board_update` | Board viewer: triggered on user join or confirmed encounter | — |
 

@@ -24,6 +24,7 @@
 
 import { Hono } from 'hono'
 import { Env, Room } from '../lib/types'
+import type { DurableRoom } from '../durable/DurableRoom'
 import { hashToken } from '../lib/auth'
 import { purgeRoom } from '../lib/rooms'
 import { newPublicId } from '../lib/ids'
@@ -270,6 +271,10 @@ admin.delete('/rooms/:roomId/users/:uid', async (c) => {
   await c.env.DB.prepare(
     'DELETE FROM users WHERE public_id = ? AND room_id = ?'
   ).bind(uid, roomId).run()
+  // Mirror the D1 delete in the DurableRoom: drop any active encounter involving
+  // this user and release their partner, so no ghost session keeps being pushed.
+  const stub = c.env.DURABLE_ROOM.get(c.env.DURABLE_ROOM.idFromName(roomId)) as unknown as DurableObjectStub<DurableRoom>
+  await stub.removeUserEncounters(uid)
   console.info('admin.user.deleted', { room: roomId, user: uid })
   return c.json({ ok: true })
 })

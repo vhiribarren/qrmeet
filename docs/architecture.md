@@ -143,12 +143,21 @@ One instance per room, keyed by `roomId`. Uses SQLite-backed storage (`new_sqlit
 
 All users in a room maintain a persistent WebSocket connection to the same `DurableRoom` instance. Multiple encounters run in parallel with independent timers.
 
-| Endpoint (internal) | Description |
+WebSocket upgrades go through the DO's `fetch()` handler (the only HTTP surface); everything else is a typed RPC method called on the stub from the worker routes.
+
+| Internal endpoint (fetch) | Description |
 |---|---|
-| `GET /ws?userId=` | WebSocket upgrade; sends `session_start` if user has active encounter, else `connected` |
-| `POST /start-encounter` | Registers a new encounter, notifies both users instantly, schedules alarm |
-| `POST /confirm-encounter` | Marks encounter confirmed, notifies both users, removes from active list |
-| `POST /notify` | Sends a message to specific users by ID |
+| `GET /ws?userId=` | Player WebSocket upgrade; sends `session_start` if the user has an active encounter, else `connected` |
+| `GET /board-ws` | Board-viewer WebSocket upgrade; receives `board_update` pushes |
+
+| RPC method | Caller | Description |
+|---|---|---|
+| `startEncounter(data)` | scan route | Registers a new encounter, pushes `session_start` to both users, schedules the alarm |
+| `confirmEncounter(encounterId)` | scan route | Pushes `session_confirmed` to both users, removes the encounter from the active list, refreshes boards |
+| `removeUserEncounters(userId)` | admin user-delete route | Purges every active encounter involving a deleted user and pushes `session_cancelled` to both parties |
+| `notifyTokenBurned(userId)` | scan route | Pushes `token_refresh` to the scanned user so their client re-issues a fresh QR token |
+| `broadcastBoardUpdate()` | users & treasures routes | Pushes `board_update` to all board viewers (user joined, treasure claimed) |
+| `cleanup()` | room deletion & cron | Clears the active-encounter table and cancels any pending alarm |
 
 **Timer management**: The DO maintains a SQLite table of active encounters. The alarm is always set to the earliest `endsAt`. When it fires, all expired encounters are processed (notified), then the alarm is rescheduled to the next one.
 
@@ -313,7 +322,7 @@ Treasure QR codes are static (printed once) and encode `/r/:roomId/treasure/:tre
 
 ### Scheduled cleanup of expired rooms
 
-Rooms carry an `expires_at` (`created_at` + `ROOM_TTL_DAYS`, default 7 days). An hourly **Cron Trigger** (`[triggers].crons` in `wrangler.toml`, handled by `scheduled()` in `worker/index.ts`) deletes every expired room and all of its data: treasure_scans → treasures → encounters → users → rooms in D1 (in that order, since these tables have no `ON DELETE CASCADE` to the room), then a `POST /cleanup` to the room's Durable Object, which clears its `active_encounters` table and cancels any pending alarm.
+Rooms carry an `expires_at` (`created_at` + `ROOM_TTL_DAYS`, default 7 days). An hourly **Cron Trigger** (`[triggers].crons` in `wrangler.toml`, handled by `scheduled()` in `worker/index.ts`) deletes every expired room and all of its data: treasure_scans → treasures → encounters → users → rooms in D1 (in that order, since these tables have no `ON DELETE CASCADE` to the room), then a `cleanup()` RPC call to the room's Durable Object, which clears its `active_encounters` table and cancels any pending alarm.
 
 This is the single mechanism that bounds data retention. Consequences:
 - Personal data lives at most `ROOM_TTL_DAYS` (default 7 days) + up to 1h (next cron tick) — matching the Privacy notice. The board and admin pages display a live countdown to the deletion time (`expiresAt`).

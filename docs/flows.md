@@ -204,7 +204,7 @@ sequenceDiagram
     S->>S: Verify qr_token (D1) ✓
     S->>S: Create encounter (A,B)
     S->>S: Burn qr_token (set NULL)
-    S->>DO: POST /start-encounter
+    S->>DO: startEncounter() [RPC]
     DO->>DO: Store encounter, set alarm
     DO-->>A: session_start {partner: B, endsAt}
     DO-->>B: session_start {partner: A, endsAt}
@@ -222,7 +222,7 @@ sequenceDiagram
     A->>S: POST /scan {scanneeId: B, qrToken}
     S->>S: Verify encounter.notified_at ✓
     S->>S: SET counted=1, closed_at
-    S->>DO: POST /confirm-encounter
+    S->>DO: confirmEncounter() [RPC]
     DO-->>A: session_confirmed
     DO-->>B: session_confirmed
     S-->>A: 200 {action: "confirmed"}
