@@ -42,7 +42,7 @@ Backend server:
 1. An organiser creates a room and shares the room code with attendees.
 2. Each participant opens the app on their phone and joins the room. No installation, no account or registration needed — the app assigns a private identity stored in `localStorage`.
 3. Each participant gets a personal ID card showing their name, emoji, and a QR code.
-4. When two people meet, one scans the other's QR code. A 5-minute countdown starts on both phones.
+4. When two people meet, one scans the other's QR code. A conversation countdown (5 minutes by default, configurable per room) starts on both phones.
 5. After the timer elapses, scanning again confirms the meeting. Both participants earn +1 point.
 6. A scoreboard shows each participant their own total and the list of people they've met.
 7. The organiser can view a full leaderboard and an interactive encounter graph at `/r/{roomId}/board`.

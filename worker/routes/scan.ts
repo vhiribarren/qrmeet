@@ -100,7 +100,10 @@ scan.post('/', async (c) => {
     }
     if (!existing.notified_at) {
       console.info('encounter.rejected', { room: roomId, reason: 'in_progress', encounter: existing.id, userA, userB })
-      return c.json({ error: 'Session still in progress — come back after the 5 minutes are up.' }, 409)
+      // Duration-agnostic wording: the timer length is configurable per room.
+      // The client's mutual-scan reconciliation matches /progress/i on this
+      // message (doScan in public/app.js) — keep that word if rephrasing.
+      return c.json({ error: 'Session still in progress — come back when the timer is up.' }, 409)
     }
 
     // Timer elapsed and notified — burn token and confirm
