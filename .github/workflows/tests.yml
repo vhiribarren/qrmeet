@@ -1,15 +1,17 @@
 # CI tests: fast unit/integration suite (Vitest) and the end-to-end suite
 # (Playwright). Both gate merges into `main`: enable them as required status
-# checks in the branch protection rules. Deployment itself is handled separately
-# by Cloudflare Workers Builds, which does not wait for this workflow.
+# checks in the branch protection rules. They also run on every push to any
+# branch, so failures surface before a PR is even opened. Deployment itself is
+# handled separately by Cloudflare Workers Builds, which does not wait for this
+# workflow.
 name: tests
 
 on:
   pull_request:
     branches: [main]
-  # Safety net: also run on direct pushes to main.
+  # Also run on pushes to any branch (main and feature branches alike).
   push:
-    branches: [main]
+    branches: ["**"]
   workflow_dispatch:
 
 # A newer push to the same branch/PR cancels the in-flight run.
