@@ -99,11 +99,29 @@ scan.post('/', async (c) => {
       return c.json({ error: 'You already completed a session with this person.' }, 409)
     }
     if (!existing.notified_at) {
-      console.info('encounter.rejected', { room: roomId, reason: 'in_progress', encounter: existing.id, userA, userB })
-      // Duration-agnostic wording: the timer length is configurable per room.
-      // The client's mutual-scan reconciliation matches /progress/i on this
-      // message (doScan in public/app.js) — keep that word if rephrasing.
-      return c.json({ error: 'Session still in progress — come back when the timer is up.' }, 409)
+      // Self-heal a missed alarm. Normally notified_at is set by the DurableRoom
+      // alarm at endsAt; if the DO registration failed right after the D1 insert
+      // (transient RPC error, worker killed between the two writes), no alarm
+      // was ever scheduled and this pair would be stuck forever — unconfirmable
+      // ("still in progress") and unable to restart (the row exists). So when a
+      // scan arrives after the timer should have elapsed, set notified_at inline
+      // and fall through to the confirmation below. The room's *current*
+      // duration is used as the reference: if the organiser shortened it
+      // mid-session this may allow a slightly early confirmation, which is
+      // harmless next to a permanently stuck pair.
+      const healNow = Math.floor(Date.now() / 1000)
+      const duration = resolveSettings(settings, c.env).encounterDurationSeconds
+      if (healNow < existing.started_at + duration) {
+        console.info('encounter.rejected', { room: roomId, reason: 'in_progress', encounter: existing.id, userA, userB })
+        // Duration-agnostic wording: the timer length is configurable per room.
+        // The client's mutual-scan reconciliation matches /progress/i on this
+        // message (doScan in public/app.js) — keep that word if rephrasing.
+        return c.json({ error: 'Session still in progress — come back when the timer is up.' }, 409)
+      }
+      console.warn('encounter.selfheal', { room: roomId, encounter: existing.id, userA, userB })
+      await c.env.DB.prepare(
+        'UPDATE encounters SET notified_at = ? WHERE id = ? AND notified_at IS NULL'
+      ).bind(healNow, existing.id).run()
     }
 
     // Timer elapsed and notified — burn token and confirm

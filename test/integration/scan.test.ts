@@ -33,7 +33,11 @@ describe('scan / encounter lifecycle', () => {
   })
 
   it('rejects a second scan while the encounter is still running', async () => {
-    const { roomId } = await createRoom()
+    const { roomId, adminToken } = await createRoom()
+    // The test env's default duration is 0 (encounters expire instantly, see
+    // vitest.config.ts), so "still running" needs a real per-room timer —
+    // otherwise the missed-alarm self-heal legitimately confirms instead.
+    await admin(roomId, adminToken).put('/settings', { encounterDurationSeconds: 300 })
     const [a, b] = [await joinUser(roomId), await joinUser(roomId)]
     await scan(roomId, a, b)
     const { res, data } = await scan(roomId, a, b)
@@ -130,6 +134,35 @@ describe('scan / encounter lifecycle', () => {
       body: JSON.stringify({ scanneePublicId: b.publicId, qrToken: 'stale-or-burned' }),
     })
     const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data.action).toBe('confirmed')
+
+    const sa = await getScore(roomId, a)
+    const sb = await getScore(roomId, b)
+    expect(sa.data.score).toBe(1)
+    expect(sb.data.score).toBe(1)
+  })
+
+  it('self-heals a missed timer: confirms even though the alarm never set notified_at', async () => {
+    // If the DurableRoom registration fails right after the D1 insert (worker
+    // killed, transient RPC error), no alarm is ever scheduled and notified_at
+    // stays NULL forever — the pair would be stuck: unconfirmable ("still in
+    // progress") and unable to restart (the encounter row exists). A scan
+    // arriving after the timer should have elapsed must repair this inline.
+    const { roomId, adminToken } = await createRoom()
+    // Use a real timer (the test env default is 0) so this exercises the actual
+    // time-based gate: the scan below confirms because started_at is backdated
+    // past the duration, not because the duration is degenerate.
+    await admin(roomId, adminToken).put('/settings', { encounterDurationSeconds: 300 })
+    const [a, b] = [await joinUser(roomId), await joinUser(roomId)]
+    await scan(roomId, a, b)
+
+    // Simulate the missed alarm: timer long over, notified_at never set.
+    await env.DB.prepare(
+      'UPDATE encounters SET started_at = started_at - 4000 WHERE room_id = ? AND notified_at IS NULL'
+    ).bind(roomId).run()
+
+    const { res, data } = await scan(roomId, a, b)
     expect(res.status).toBe(200)
     expect(data.action).toBe('confirmed')
 

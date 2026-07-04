@@ -157,7 +157,7 @@ The server:
 3. Verifies the QR token against the scannee's `users.qr_token` in D1 (the token is **not burned** if the scan would be rejected).
 4. Checks whether an open encounter already exists between the pair:
    - **No encounter** → checks the busy guard below, then burns the token **atomically** (`UPDATE … WHERE qr_token = ?` — if two people scan the same displayed QR at once, only one request consumes it; the loser is rejected `400` as an expired code), creates encounter row, picks two random questions from the room's pool (one per participant), notifies `DurableRoom`, returns `started` (the response carries the scanner's own `question`). If a simultaneous scan of the same pair already created the row (UNIQUE constraint), the duplicate request returns `started` for the existing encounter instead of erroring.
-   - **Open encounter, `notified_at` not set** → session still in progress, returns `409`.
+   - **Open encounter, `notified_at` not set** → session still in progress, returns `409`. **Self-heal:** if the timer should already have elapsed (`now ≥ started_at + duration`) yet `notified_at` was never set — meaning the `DurableRoom` alarm was missed, e.g. the DO registration failed right after the D1 insert — the scan sets `notified_at` inline and proceeds to the confirmation below instead of leaving the pair permanently stuck.
    - **Open encounter, `notified_at` set** → burns token, marks encounter as `counted = 1`, notifies `DurableRoom`, returns `confirmed`.
    - **Counted encounter** → returns `409`.
 
