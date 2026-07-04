@@ -58,6 +58,30 @@
 
 ## Always
 
+- **Changelog.** Every functional change — new feature, behaviour change, or bug
+  fix — must be recorded in `CHANGELOG.md` at the project root, which follows the
+  [Keep a Changelog](https://keepachangelog.com/) format. Add the entry under
+  `[Unreleased]` in the appropriate category (`Added` / `Changed` / `Fixed` /
+  `Removed` / `Deprecated` / `Security`), written for users of the app rather
+  than as a commit message. Purely internal changes (refactors, tests, docs,
+  tooling) do not need an entry. Releases use a pragmatic `major.minor.patch`
+  scheme (not strict SemVer): **major** for massive evolutions, **minor** for
+  functional updates, **patch** for bug fixes.
+- **Releases.** Cut releases with a single command from a clean, up-to-date
+  `main`:
+  ```bash
+  npm run release -- minor   # or major / patch
+  ```
+  This first runs `npm test` and `npm run test:e2e` (any failure aborts the
+  release before anything is written; the e2e suite needs the one-time
+  Playwright setup described in the README), then renames `[Unreleased]` to
+  `## [x.y.z] - YYYY-MM-DD` in
+  `CHANGELOG.md` (and re-adds an empty `[Unreleased]`), bumps `package.json`,
+  commits, tags `v<x.y.z>`, and pushes — plain local git, no token, no CI
+  machinery. It requires push access to `main`. The push triggers the Cloudflare Workers
+  Builds deployment, so the tag matches what is live. There is no GitHub
+  Release: the tag and the changelog are the record. Never edit the version
+  or tags by hand.
 - **Document synchronization.** After any change to business logic, data model,
   API, or infrastructure, check and update the relevant files in `docs/`:
   - `docs/architecture.md` — data model, infrastructure, design decisions

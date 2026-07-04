@@ -159,6 +159,7 @@ Any additional value you want to keep private can be turned into a
 | `npm run test:frontend` / `npm run test:workers` | Run a single Vitest project |
 | `npm run test:e2e` | Run the Playwright end-to-end suite (front-end + WebSocket; auto-starts `wrangler dev`) |
 | `npm run simulate -- --create-room` | Simulate users and encounters against a running instance (use `--room <id>` to target an existing room) |
+| `npm run release -- <major\|minor\|patch>` | Cut a release from `main`: changelog section, version bump, commit, tag, push (see [docs/guidelines.md](docs/guidelines.md)) |
 
 ## Further reading
 
