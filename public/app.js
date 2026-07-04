@@ -155,7 +155,11 @@ export function qrmeet() {
 
     // ── Init ──
     async init() {
-      // Check for iOS Safari (not standalone)
+      // Check for iOS Safari (not standalone). On iOS we deliberately do NOT
+      // suggest "Add to Home Screen": a home-screen web app has a storage
+      // container separate from Safari's, so a player who joined in Safari and
+      // then opens the installed app gets a blank localStorage — a brand-new
+      // identity and a lost score. The iOS banner suggests a bookmark instead.
       const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
       const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone
       if (isIos && !isStandalone) {

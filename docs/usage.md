@@ -70,15 +70,16 @@ collected only once per person.
 
 <img src="images/treasure.webp" alt="Treasure collected, bonus points awarded" width="280">
 
-### Install it as an app (optional)
+### Keep it handy (optional)
 
-For quick access during the event, you can add QRMeet to your home screen:
+For quick access during the event:
 
 - **Android / Chrome** — tap the **Install QRMeet** banner, or use the browser's
-  "Add to Home screen" menu.
-- **iPhone / Safari** — tap **Share**, then **Add to Home Screen**.
-
-Your session and score are preserved.
+  "Add to Home screen" menu. Your session and score are preserved.
+- **iPhone / Safari** — tap **Share**, then **Add Bookmark**, and keep the tab
+  open. Do **not** use "Add to Home Screen" on iOS: the home-screen app has its
+  own storage, separate from Safari's, so it would start you over with a new
+  profile and an empty score.
 
 ---
 

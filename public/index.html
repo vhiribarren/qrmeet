@@ -158,11 +158,13 @@ SOFTWARE.
             </div>
           </div>
           
-          <!-- iOS PWA Prompt -->
+          <!-- iOS hint: recommend a bookmark, NOT "Add to Home Screen". On iOS a
+               home-screen web app runs in a storage container separate from Safari,
+               so opening it mid-event would start a blank profile (score lost). -->
           <div class="install-banner__content" x-show="!installPromptEvent && isIosInstallable">
             <div class="install-banner__text">
-              <strong>📱 Install QRMeet</strong>
-              <span>Tap the <strong>Share</strong> icon below, then select <strong>Add to Home Screen</strong>.</span>
+              <strong>📌 Keep QRMeet handy</strong>
+              <span>Tap the <strong>Share</strong> icon below, then <strong>Add Bookmark</strong> — and keep this tab open during the event.</span>
             </div>
             <div class="install-banner__actions">
               <button class="btn btn--ghost install-banner__btn" style="background: var(--bg); color: var(--text-muted); font-size: 14px; min-height: 36px; padding: 6px 16px;" @click="dismissInstallBanner()">Got it</button>
@@ -310,7 +312,7 @@ SOFTWARE.
         </div>
 
         <section class="about__section" x-show="installPromptEvent || isIosInstallable">
-          <h2 class="about__section-title">App Installation</h2>
+          <h2 class="about__section-title">Quick Access</h2>
           
           <div x-show="installPromptEvent" style="display: flex; flex-direction: column; gap: 10px;">
             <p class="about__section-body">Install QRMeet on your device's home screen for quick access during the event without losing your tab.</p>
@@ -318,7 +320,7 @@ SOFTWARE.
           </div>
 
           <div x-show="!installPromptEvent && isIosInstallable">
-            <p class="about__section-body">To install QRMeet on your iPhone or iPad, tap the <strong>Share</strong> icon below, then select <strong>Add to Home Screen</strong>.</p>
+            <p class="about__section-body">On iPhone or iPad, tap the <strong>Share</strong> icon below and choose <strong>Add Bookmark</strong> to find QRMeet again quickly. Avoid "Add to Home Screen": on iOS the home-screen app cannot see the profile saved in Safari, so it would restart you with a fresh identity and an empty score.</p>
           </div>
         </section>
 
