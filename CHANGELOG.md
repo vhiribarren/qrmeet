@@ -17,6 +17,8 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-04
+
 ### Added
 
 - First version
