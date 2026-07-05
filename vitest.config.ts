@@ -9,6 +9,7 @@ export default defineConfig(async () => {
 
   return {
     test: {
+      silent: 'passed-only' as const,
       projects: [
         {
           // Worker suite — runs inside the real workerd runtime with live D1/DO bindings.
@@ -31,8 +32,6 @@ export default defineConfig(async () => {
             name: 'workers',
             include: ['test/unit/**/*.{test,spec}.ts', 'test/integration/**/*.{test,spec}.ts'],
             setupFiles: ['./test/apply-migrations.ts'],
-            // Suppress worker console output for passing tests; keep it when a test fails.
-            silent: 'passed-only',
           },
         },
         {
@@ -44,7 +43,6 @@ export default defineConfig(async () => {
             name: 'frontend',
             include: ['test/frontend/**/*.{test,spec}.ts'],
             environment: 'happy-dom',
-            silent: 'passed-only',
           },
         },
       ],

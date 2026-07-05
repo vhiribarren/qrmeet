@@ -8,7 +8,7 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8787'
 // is never used: scans are performed by navigating the scan URL directly, which
 // is exactly what init() does for a cold scan deep-link.
 export default defineConfig({
-  testDir: './e2e',
+  testDir: './test/e2e',
   // One backend (D1 + Durable Objects) is shared by every test. Rooms are
   // isolated by id, but a single worker keeps WebSocket timing deterministic.
   workers: 1,

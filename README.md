@@ -74,7 +74,7 @@ npm test             # Vitest — Workers (unit + integration) + front-end compo
 npm run test:e2e     # Playwright — front-end & WebSocket end-to-end
 ```
 
-The Playwright suite (`e2e/`) drives real browser contexts against a live `wrangler dev`. Two one-time prerequisites:
+The Playwright suite (`test/e2e/`) drives real browser contexts against a live `wrangler dev`. Two one-time prerequisites:
 
 - A local `wrangler.toml` (copy `wrangler.sample.toml`) — same requirement as `npm run dev`.
 - The browser binary: `npx playwright install chromium` (the `@playwright/test` package itself comes with `npm install`).

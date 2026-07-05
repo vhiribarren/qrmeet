@@ -244,16 +244,16 @@ Run all with `npm test` (`npm run test:watch` to watch; `npm run test:frontend` 
 directly in D1 (the same `UPDATE` the DurableRoom alarm runs) so it is deterministic without
 waiting.
 
-#### End-to-end (`e2e/`, Playwright)
+#### End-to-end (`test/e2e/`, Playwright)
 
 The Alpine front-end and the live WebSocket path are covered by a separate **Playwright**
-suite under `e2e/`, run with `npm run test:e2e` (a `pretest:e2e` hook applies the migrations
+suite under `test/e2e/`, run with `npm run test:e2e` (a `pretest:e2e` hook applies the migrations
 to the local D1; Playwright then auto-starts `wrangler dev` on `:8787`). Each test drives one
 or more real browser contexts — one per "phone" — so a scan is performed by navigating the
 scan URL directly (the camera is never used, matching `init()`'s cold-deep-link path). Screens
 are selected via `data-test` attributes (`testIdAttribute: 'data-test'`); live state (`me`,
 `qrToken`, `wsStatus`, `scoreData`) is read from the Alpine component via `window.Alpine.$data`.
-Shared fixtures live in `e2e/helpers.ts`. The suite is split by theme:
+Shared fixtures live in `test/e2e/helpers.ts`. The suite is split by theme:
 
 - **`encounter.spec.ts`** — the meeting mechanics: the **session screen appears for both roles**
   (scanner via the HTTP `started` response, scannee via the `session_start` push), confirmation,
