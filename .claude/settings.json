@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); printf '%s' \"$input\" | jq -e '.stop_hook_active==true' >/dev/null 2>&1 && exit 0; cd \"${CLAUDE_PROJECT_DIR:-.}\" || exit 0; func=$(git status --porcelain -- worker public ':(exclude)public/vendor' 2>/dev/null); [ -z \"$func\" ] && exit 0; git status --porcelain -- CHANGELOG.md 2>/dev/null | grep -q . && exit 0; printf '%s' '{\"decision\":\"block\",\"reason\":\"Functional files under worker/ or public/ changed but CHANGELOG.md was not updated. Per docs/guidelines.md, add an entry under [Unreleased] (Added/Changed/Fixed/…), written for users and kept short (ideally one line), if this is a user-facing change. If it is purely internal (refactor, tests, docs, tooling), no entry is needed — say so briefly and stop.\"}'; exit 0"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); printf '%s' \"$input\" | jq -e '.stop_hook_active==true' >/dev/null 2>&1 && exit 0; cd \"${CLAUDE_PROJECT_DIR:-.}\" || exit 0; dep=$(git status --porcelain -- package-lock.json 2>/dev/null); [ -z \"$dep\" ] && exit 0; git status --porcelain -- THIRD_PARTY_LICENSES.md 2>/dev/null | grep -q . && exit 0; printf '%s' '{\"decision\":\"block\",\"reason\":\"Dependencies changed (package-lock.json) but THIRD_PARTY_LICENSES.md was not updated. Per docs/guidelines.md, keep license files in sync: update THIRD_PARTY_LICENSES.md and the About page (remove library versions), and verify licenses with npx license-checker. If no dependency was actually added/removed/updated, say so briefly and stop.\"}'; exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // .tool_response.filePath // empty'); [ -z \"$f\" ] && exit 0; case \"$f\" in \"${CLAUDE_PROJECT_DIR:-/nonexistent}\"/*) ;; *) exit 0;; esac; case \"$f\" in *.ts|*.tsx|*.js|*.css|*.html) ;; *) exit 0;; esac; case \"$f\" in */public/vendor/*) exit 0;; esac; [ -f \"$f\" ] || exit 0; head -n 20 \"$f\" | grep -q \"MIT License\" && exit 0; printf '%s' \"{\\\"decision\\\":\\\"block\\\",\\\"reason\\\":\\\"New source file $f is missing the MIT license header required by docs/guidelines.md. Add the MIT copyright block at the top (Copyright (c) 2026 Vincent Hiribarren); for .html place it right after the <!DOCTYPE html> line. Match the format already used in sibling files.\\\"}\"; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
