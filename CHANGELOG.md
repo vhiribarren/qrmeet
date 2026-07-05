@@ -17,6 +17,8 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-05
+
 ### Fixed
 
 - A finished meeting can no longer be confirmed while you're still chatting with
@@ -28,5 +30,6 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 - First version
 
-[Unreleased]: https://github.com/vhiribarren/qrmeet/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/vhiribarren/qrmeet/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/vhiribarren/qrmeet/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/vhiribarren/qrmeet/releases/tag/v1.0.0
