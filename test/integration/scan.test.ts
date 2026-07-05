@@ -82,6 +82,42 @@ describe('scan / encounter lifecycle', () => {
     expect(data.error).toMatch(/already in a conversation/i)
   })
 
+  it('blocks confirming an older encounter while mid-conversation with a third party', async () => {
+    // Sequence the busy guard used to miss: A talks to B, the timer expires
+    // (B now confirmable), A starts a *new* conversation with C (allowed — pending
+    // confirmations are part of the game), then A tries to confirm B while still
+    // chatting with C. That confirmation must be rejected until the C session ends.
+    const { roomId, adminToken } = await createRoom()
+    // Real per-room timer so the A↔C session stays active (test env default is 0,
+    // which would self-heal-confirm instantly and clear the busy state).
+    await admin(roomId, adminToken).put('/settings', { encounterDurationSeconds: 300 })
+    const [a, b, c] = [await joinUser(roomId), await joinUser(roomId), await joinUser(roomId)]
+
+    await scan(roomId, a, b)      // A↔B active
+    await markTimerElapsed(roomId) // A↔B timer expires → B is now confirmable
+
+    // Starting a new session while a confirmation is pending is intentional.
+    const startC = await scan(roomId, a, c)
+    expect(startC.res.status).toBe(200)
+    expect(startC.data.action).toBe('started')
+
+    // Confirming the older A↔B while A is still in the A↔C conversation is blocked.
+    const { res, data } = await scan(roomId, a, b)
+    expect(res.status).toBe(409)
+    expect(data.error).toMatch(/finish it before confirming/i)
+
+    // No point leaked through: A↔B is still unconfirmed.
+    expect((await getScore(roomId, a)).data.score).toBe(0)
+    expect((await getScore(roomId, b)).data.score).toBe(0)
+
+    // Once the A↔C conversation ends, confirming A↔B works again.
+    await markTimerElapsed(roomId)
+    const retry = await scan(roomId, a, b)
+    expect(retry.res.status).toBe(200)
+    expect(retry.data.action).toBe('confirmed')
+    expect((await getScore(roomId, b)).data.score).toBe(1)
+  })
+
   it('rejects an invalid QR token', async () => {
     const { roomId } = await createRoom()
     const [a, b] = [await joinUser(roomId), await joinUser(roomId)]

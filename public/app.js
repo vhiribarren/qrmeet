@@ -658,6 +658,17 @@ export function qrmeet() {
           const [, roomId, scanneePublicId] = scanMatch
           const qrToken = parsed.searchParams.get('t')
 
+          // One conversation at a time: while a session is live in this room,
+          // don't process encounter scans (the server rejects both a new start
+          // and confirming an older pending encounter anyway — this just surfaces
+          // it up front). Treasures and room switches deliberately still work.
+          const inActiveSession = this.session && !this.session.confirmed &&
+            (this.session.endsAt - Math.floor(Date.now() / 1000)) > 0
+          if (inActiveSession && (!this.roomId || roomId === this.roomId)) {
+            this.showToast('Finish your current conversation first')
+            return
+          }
+
           // Block cross-room scans
           if (this.roomId && roomId !== this.roomId) {
             if (confirm(`You are currently in room "${this.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
@@ -777,7 +788,10 @@ export function qrmeet() {
         } else if (data.action === 'confirmed') {
           this.scanState = 'confirmed'
           if (navigator.vibrate) navigator.vibrate([10, 60, 20])
-          if (this.session) this.session.confirmed = true
+          // Only touch the live session if this confirmation is actually for it.
+          // Confirming an older, pending encounter must not mark a *different*
+          // active session (started since) as confirmed.
+          if (this.session?.encounterId === data.encounterId) this.session.confirmed = true
           // The encounter is over, so — unlike 'started' above — we do NOT jump to
           // the card. Auto-switching would flash the "Meeting confirmed!" screen for
           // only as long as the two awaits below, which is what made the confirmation
@@ -941,12 +955,17 @@ export function qrmeet() {
       }
 
       if (msg.type === 'session_confirmed') {
-        if (this.session) this.session.confirmed = true
         this.notify()
         this.showToast('✅ Meeting confirmed! +1 point!')
-        this.session = null
-        clearInterval(this.sessionTimer)
         this.loadScore()
+        // Guard by encounterId (like session_cancelled below): a confirmation for
+        // an older pending encounter must not clear a newer active conversation
+        // this user has since started with someone else.
+        if (this.session?.encounterId === msg.encounterId) {
+          this.session.confirmed = true
+          this.session = null
+          clearInterval(this.sessionTimer)
+        }
       }
 
       // The organiser deleted one of the two participants: the encounter is gone

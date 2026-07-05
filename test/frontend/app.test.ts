@@ -123,13 +123,27 @@ describe('handleWsMessage', () => {
     expect(app.showToast).toHaveBeenCalled()
   })
 
-  it('session_confirmed clears the session', () => {
+  it('session_confirmed clears the matching session', () => {
     const app = makeApp({ session: { encounterId: 'e1', confirmed: false, endsAt: 1 } })
 
-    app.handleWsMessage({ type: 'session_confirmed' })
+    app.handleWsMessage({ type: 'session_confirmed', encounterId: 'e1' })
 
     expect(app.session).toBeNull()
     expect(app.notify).toHaveBeenCalled()
+    expect(app.loadScore).toHaveBeenCalled()
+  })
+
+  it('session_confirmed for an older encounter does not clear a newer active session', () => {
+    // A confirmation for a pending encounter (e0) must not clobber the live
+    // conversation the user has since started with someone else (e1).
+    const app = makeApp({ session: { encounterId: 'e1', confirmed: false, endsAt: 1 } })
+
+    app.handleWsMessage({ type: 'session_confirmed', encounterId: 'e0' })
+
+    expect(app.session).not.toBeNull()
+    expect(app.session.encounterId).toBe('e1')
+    expect(app.session.confirmed).toBe(false)
+    // The point was still awarded, so the score is refreshed either way.
     expect(app.loadScore).toHaveBeenCalled()
   })
 

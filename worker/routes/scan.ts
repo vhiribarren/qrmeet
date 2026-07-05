@@ -98,6 +98,27 @@ scan.post('/', async (c) => {
       console.info('encounter.rejected', { room: roomId, reason: 'already_completed', encounter: existing.id, userA, userB })
       return c.json({ error: 'You already completed a session with this person.' }, 409)
     }
+
+    // Guard: don't let the scanner confirm this (older) encounter while they are
+    // still mid-conversation with a third party. Starting new sessions while
+    // confirmations pile up is intentional (that's the pending-confirmations
+    // game), but *confirming* during a live conversation corrupts the scanner's
+    // active-session view. Only the scanner is gated: if it's the scannee who is
+    // busy elsewhere, they did nothing here, and their own client ignores the
+    // session_confirmed push for a non-matching encounter. Excludes this pair's
+    // own encounter so a scan of the current partner still falls through to the
+    // "in progress" message below.
+    const scannerBusy = await c.env.DB.prepare(
+      `SELECT 1 FROM encounters
+       WHERE room_id = ? AND id != ? AND notified_at IS NULL AND counted = 0
+         AND (user_a_id = ? OR user_b_id = ?)
+       LIMIT 1`
+    ).bind(roomId, existing.id, scanner.public_id, scanner.public_id).first()
+    if (scannerBusy) {
+      console.info('encounter.rejected', { room: roomId, reason: 'confirm_while_busy', encounter: existing.id, scanner: scanner.public_id })
+      return c.json({ error: "You're in a conversation right now — finish it before confirming this one." }, 409)
+    }
+
     if (!existing.notified_at) {
       // Self-heal a missed alarm. Normally notified_at is set by the DurableRoom
       // alarm at endsAt; if the DO registration failed right after the D1 insert

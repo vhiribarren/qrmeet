@@ -17,6 +17,11 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- A finished meeting can no longer be confirmed while you're still chatting with
+  someone else — wait until your current conversation ends.
+
 ## [1.0.0] - 2026-07-04
 
 ### Added

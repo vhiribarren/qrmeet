@@ -103,6 +103,54 @@ test('busy guard blocks a third scanner', async ({ browser, request }) => {
   await c.ctx.close()
 })
 
+// Confirming an older meeting must not disturb a *live* conversation the user has
+// since started with someone else. A talks to B, the timer elapses, A starts a new
+// conversation with C; then B confirms the old A↔B over the wire. A gets the point
+// but their on-screen conversation with C must survive (session_confirmed is guarded
+// by encounterId — the DO/WS end-to-end version of that reconciliation).
+test('confirming an older meeting keeps the active conversation intact', async ({ browser, request }) => {
+  // Short timer so A↔B notifies quickly…
+  const room = await createRoom(request, { durationSeconds: 2 })
+  const a = await newPhone(browser)
+  const b = await newPhone(browser)
+  const c = await newPhone(browser)
+  const A = await joinRoom(a.page, room.roomId)
+  const B = await joinRoom(b.page, room.roomId)
+  const C = await joinRoom(c.page, room.roomId)
+
+  // A↔B, then wait for it to elapse (notified, awaiting confirmation).
+  await b.page.goto(await currentScanUrl(a.page))
+  await expect(a.page.getByTestId('session-banner')).toBeVisible()
+  await waitForNotified(request, A, B.publicId)
+
+  // …now lengthen the timer so the *next* encounter (A↔C) stays active while B
+  // confirms A↔B. This removes any race between the two encounters expiring.
+  const put = await request.put(`/api/admin/rooms/${room.roomId}/settings`, {
+    headers: { 'x-admin-token': room.adminToken },
+    data: { encounterDurationSeconds: 300 },
+  })
+  expect(put.ok(), `lengthen timer: ${put.status()}`).toBeTruthy()
+
+  // C scans A → A is now in a live conversation with C.
+  await c.page.goto(await freshScanUrl(request, A))
+  await expect(a.page.getByTestId('session-banner')).toContainText(C.displayName)
+
+  // B confirms the older A↔B (B isn't busy, so the server allows it).
+  await b.page.goto(await freshScanUrl(request, A))
+  await expect(b.page.getByTestId('scan-confirmed')).toBeVisible()
+
+  // A received the point (session_confirmed processed)…
+  await expect.poll(async () => (await appState(a.page)).score).toBe(1)
+  // …but the live conversation with C is untouched — the confirmation for the
+  // older encounter must not clear a different, newer active session.
+  await expect(a.page.getByTestId('session-banner')).toBeVisible()
+  await expect(a.page.getByTestId('session-banner')).toContainText(C.displayName)
+
+  await a.ctx.close()
+  await b.ctx.close()
+  await c.ctx.close()
+})
+
 // A QR token is single-use: reusing a burned token to start a NEW encounter fails.
 test('burned QR token cannot be reused', async ({ browser, request }) => {
   const room = await createRoom(request)
