@@ -42,4 +42,19 @@ describe('public board', () => {
     expect(board.scores.length).toBe(10)
     expect(board.totalParticipants).toBe(11)
   })
+
+  it('reports totalMeetings over all encounters, not just the capped leaderboard', async () => {
+    const { roomId } = await createRoom()
+    // 12 players (> boardTopSize of 10) so some meetings fall outside the returned rows.
+    const users = []
+    for (let i = 0; i < 12; i++) users.push(await joinUser(roomId))
+    // Six disjoint pairs → six confirmed meetings.
+    for (let i = 0; i < 12; i += 2) await completeEncounter(roomId, users[i], users[i + 1])
+
+    const board = await boardScores(roomId)
+    expect(board.scores.length).toBe(10)
+    // Summing the capped rows' `meetings` (10 rows × 1 / 2 = 5) would undercount; the
+    // server-side total counts every confirmed encounter.
+    expect(board.totalMeetings).toBe(6)
+  })
 })

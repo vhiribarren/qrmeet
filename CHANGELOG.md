@@ -17,6 +17,11 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 ## [Unreleased]
 
+### Fixed
+
+- The leaderboard's total number of meetings now matches the admin page — it no
+  longer undercounts when there are more participants than the leaderboard shows.
+
 ## [1.0.1] - 2026-07-05
 
 ### Fixed

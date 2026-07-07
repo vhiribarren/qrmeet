@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runInDurableObject } from 'cloudflare:test'
-import { createRoom, joinUser, claimTreasure, createTreasure, getScore, scan, admin, fetchWorker, env, BASE } from '../helpers'
+import { createRoom, joinUser, claimTreasure, createTreasure, completeEncounter, getScore, scan, admin, fetchWorker, env, BASE } from '../helpers'
 
 describe('admin auth', () => {
   it('rejects requests without an admin token', async () => {
@@ -15,6 +15,20 @@ describe('admin auth', () => {
       headers: { 'x-admin-token': 'wrong' },
     })
     expect(res.status).toBe(401)
+  })
+})
+
+describe('admin scores', () => {
+  it('reports the same totalMeetings as the public board', async () => {
+    const { roomId, adminToken } = await createRoom()
+    const users = []
+    for (let i = 0; i < 12; i++) users.push(await joinUser(roomId))
+    for (let i = 0; i < 12; i += 2) await completeEncounter(roomId, users[i], users[i + 1])
+
+    const { data } = await admin(roomId, adminToken).get('/scores')
+    const board = await (await fetchWorker(`${BASE}/api/rooms/${roomId}/board/scores`)).json() as any
+    expect(data.totalMeetings).toBe(6)
+    expect(data.totalMeetings).toBe(board.totalMeetings)
   })
 })
 

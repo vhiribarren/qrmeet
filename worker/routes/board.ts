@@ -62,7 +62,13 @@ board.get('/scores', async (c) => {
     'SELECT COUNT(*) as count FROM users WHERE room_id = ?'
   ).bind(roomId).first<{ count: number }>()
 
-  return c.json({ scores: scores.results, totalParticipants: totalUsers?.count ?? 0, boardTopSize: topSize, roomName: room.name, expiresAt: room.expires_at })
+  // Count meetings server-side over ALL encounters — the leaderboard is capped at
+  // boardTopSize rows, so summing the returned `meetings` client-side would undercount.
+  const totalMeetings = await c.env.DB.prepare(
+    'SELECT COUNT(*) as count FROM encounters WHERE room_id = ? AND counted = 1'
+  ).bind(roomId).first<{ count: number }>()
+
+  return c.json({ scores: scores.results, totalParticipants: totalUsers?.count ?? 0, totalMeetings: totalMeetings?.count ?? 0, boardTopSize: topSize, roomName: room.name, expiresAt: room.expires_at })
 })
 
 // GET /api/rooms/:roomId/board/graph — public, all nodes & edges

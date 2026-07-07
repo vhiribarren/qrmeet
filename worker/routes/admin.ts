@@ -75,7 +75,12 @@ admin.get('/rooms/:roomId/scores', async (c) => {
     ORDER BY score DESC, u.created_at ASC
   `).bind(c.req.param('roomId')).all()
 
-  return c.json({ scores: scores.results, expiresAt: room?.expires_at ?? null })
+  // Ground-truth meeting count over ALL encounters, so board and admin always agree.
+  const totalMeetings = await c.env.DB.prepare(
+    'SELECT COUNT(*) as count FROM encounters WHERE room_id = ? AND counted = 1'
+  ).bind(c.req.param('roomId')).first<{ count: number }>()
+
+  return c.json({ scores: scores.results, totalMeetings: totalMeetings?.count ?? 0, expiresAt: room?.expires_at ?? null })
 })
 
 // GET /api/admin/rooms/:roomId/graph

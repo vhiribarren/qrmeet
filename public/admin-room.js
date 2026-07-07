@@ -154,9 +154,8 @@ function adminApp() {
       this.scores = data.scores || []
       this.expiresAt = data.expiresAt || 0
       this.topScore = this.scores.reduce((max, u) => Math.max(max, u.score || 0), 0)
-      // Each counted encounter links two participants, so total meetings = sum/2.
-      // Use the encounter-only `meetings` field so treasure points don't inflate it.
-      this.totalMeetings = Math.floor(this.scores.reduce((sum, u) => sum + (u.meetings || 0), 0) / 2)
+      // Server-computed over all encounters so board and admin always report the same total.
+      this.totalMeetings = data.totalMeetings || 0
     },
 
     async loadGraph() {

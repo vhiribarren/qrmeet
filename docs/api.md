@@ -225,12 +225,13 @@ Top-ranked leaderboard. The number of players returned is the room's `boardTopSi
 {
   "scores": [{ "public_id": "...", "display_name": "Alice", "emoji": "🦁", "score": 5, "meetings": 2, "treasure_points": 3 }],
   "totalParticipants": 42,
+  "totalMeetings": 17,
   "roomName": "Team Building 2026",
   "expiresAt": 1234567890
 }
 ```
 
-`score = meetings + treasure_points`. The board UI reveals the `meetings`/`treasure_points` breakdown columns only when at least one displayed participant has treasure points.
+`score = meetings + treasure_points`. The board UI reveals the `meetings`/`treasure_points` breakdown columns only when at least one displayed participant has treasure points. `totalMeetings` is the room-wide count of confirmed encounters, computed server-side over **all** encounters — it must not be derived from the capped `scores` list, which would undercount.
 
 ---
 
@@ -260,11 +261,12 @@ Full ranked leaderboard with creation dates and network tags.
   "scores": [
     { "public_id": "...", "display_name": "Alice", "emoji": "🦁", "created_at": 1716800000, "score": 5, "meetings": 2, "treasure_points": 3, "network_tag": "a1b2c3d4" }
   ],
+  "totalMeetings": 17,
   "expiresAt": 1234567890
 }
 ```
 
-`score` is the unified total; `meetings` is the confirmed-encounter count and `treasure_points` the treasure-hunt total (`score = meetings + treasure_points`). `network_tag` is the first 8 hex characters of the HMAC of the user's IP, salted per room. Useful for spotting duplicate or bot-created accounts.
+`score` is the unified total; `meetings` is the confirmed-encounter count. `totalMeetings` is the room-wide count of confirmed encounters (same server-side count as the public board), so both pages always report the same number. and `treasure_points` the treasure-hunt total (`score = meetings + treasure_points`). `network_tag` is the first 8 hex characters of the HMAC of the user's IP, salted per room. Useful for spotting duplicate or bot-created accounts.
 
 ---
 
