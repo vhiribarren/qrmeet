@@ -666,7 +666,7 @@ emoji-picker {
   .podium__place { max-width: 200px; }
 
   /* Graph fills the remaining window height down to the bottom */
-  .tab-graph { flex: 1; min-height: 0; display: flex; }
+  .tab-graph { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .tab-graph .graph { flex: 1; height: auto; }
 
   /* Bigger QR so it scans from across the room; pixelated keeps it crisp upscaled */
@@ -708,7 +708,12 @@ emoji-picker {
 }
 .remove-btn:hover { background: #fef2f2; }
 
-.graph { width: 100%; height: 400px; background: var(--surface); border-radius: 12px; overflow: hidden; }
+.graph { width: 100%; height: 400px; background: var(--surface); border-radius: 12px; overflow: hidden; touch-action: none; }
+.graph__node { cursor: pointer; }
+.graph__node circle { transition: opacity 0.15s ease; }
+.graph__emoji { pointer-events: none; user-select: none; }
+.graph__label { pointer-events: none; user-select: none; font-size: 12px; font-weight: 600; fill: var(--text); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.graph-hint { margin: 8px 2px 0; font-size: 13px; color: var(--text-muted); text-align: center; }
 
 /* ── QUESTIONS TAB (admin) ── */
 .questions-tab { display: flex; flex-direction: column; gap: 16px; }

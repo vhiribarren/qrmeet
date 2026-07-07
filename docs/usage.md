@@ -118,7 +118,10 @@ podium and ranked leaderboard that updates as people meet.
 <img src="images/board.webp" alt="Public leaderboard with podium" width="680">
 
 The **Graph** view draws the live encounter network — every node is a participant,
-every edge a confirmed meeting. It's a great visual of the room warming up.
+every edge a confirmed meeting. It's a great visual of the room warming up. The
+bigger a node, the more people that participant has met. Scroll to zoom, drag to
+pan, and tap a node to focus it — the rest dims and the names of its direct
+connections appear, so relationships stay readable even in a packed room.
 
 <img src="images/graph.webp" alt="Encounter graph of confirmed meetings" width="680">
 
