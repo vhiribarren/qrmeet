@@ -133,9 +133,9 @@ function boardApp() {
       this.roomName = data.roomName || ''
       this.expiresAt = data.expiresAt || 0
       this.topScore = this.scores.length > 0 ? this.scores[0].score : 0
-      // Each confirmed encounter links two participants, so total meetings = sum/2.
-      // Use the encounter-only `meetings` field so treasure points don't inflate it.
-      this.totalMeetings = Math.floor(this.scores.reduce((sum, u) => sum + (u.meetings || 0), 0) / 2)
+      // Server-computed over all encounters — the leaderboard is capped at boardTopSize
+      // rows, so summing the returned per-user `meetings` here would undercount.
+      this.totalMeetings = data.totalMeetings || 0
     },
 
     // True when at least one displayed participant has treasure points — used to
