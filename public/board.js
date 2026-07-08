@@ -48,7 +48,7 @@ function boardApp() {
     boardTopSize: 10,
     totalMeetings: 0,
     topScore: 0,
-    tab: 'top10',
+    tab: 'join',
     copied: false,
     graphData: null,
     _graphReloadTimer: null,
