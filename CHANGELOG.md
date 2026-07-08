@@ -17,6 +17,8 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-08
+
 ### Changed
 
 - Board tabs reordered to Join, Graph, Top score, opening on Join.
@@ -40,6 +42,7 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 - First version
 
-[Unreleased]: https://github.com/vhiribarren/qrmeet/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/vhiribarren/qrmeet/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/vhiribarren/qrmeet/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/vhiribarren/qrmeet/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/vhiribarren/qrmeet/releases/tag/v1.0.0
