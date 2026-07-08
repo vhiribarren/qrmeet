@@ -21,7 +21,8 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 - The encounter graph stays readable with large rooms: you can now zoom and pan,
   node size reflects how many people someone has met, and tapping a node focuses
-  it — dimming the rest and showing the names of its direct connections.
+  it — dimming the rest and highlighting its direct connections. The view no
+  longer resets when new encounters come in.
 
 ### Fixed
 

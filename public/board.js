@@ -51,6 +51,7 @@ function boardApp() {
     tab: 'top10',
     copied: false,
     graphData: null,
+    _graphReloadTimer: null,
     _ws: null,
     _wsPingTimer: null,
     expiresAt: 0,
@@ -83,7 +84,7 @@ function boardApp() {
         const msg = JSON.parse(e.data)
         if (msg.type === 'board_update') {
           this.loadScores()
-          if (this.tab === 'graph' && this.graphData !== null) this.loadGraph()
+          if (this.tab === 'graph' && this.graphData !== null) this.scheduleGraphReload()
         }
       })
       ws.addEventListener('close', () => { this.stopWsPing(); setTimeout(() => this.connectWs(), 3000) })
@@ -166,6 +167,13 @@ function boardApp() {
       this.$nextTick(() => this.renderGraph())
     },
 
+    // Coalesce bursts of board updates into a single graph reload so the view
+    // isn't rebuilt (and the camera disturbed) on every incoming encounter.
+    scheduleGraphReload() {
+      clearTimeout(this._graphReloadTimer)
+      this._graphReloadTimer = setTimeout(() => this.loadGraph(), 1500)
+    },
+
     renderGraph() {
       const container = document.getElementById('board-graph')
       if (!container || !this.graphData) return
@@ -179,7 +187,16 @@ function boardApp() {
       // Everything lives inside this layer so zoom/pan is a single transform.
       const layer = svg.append('g')
 
-      const nodes = this.graphData.nodes.map(n => ({ id: n.public_id, name: n.display_name, emoji: n.emoji }))
+      // Reuse the previous layout so live updates don't reset the view: seed
+      // each node with its last position and keep the camera where the user
+      // left it. Only a first render (no saved layout) auto-frames the graph.
+      const prev = new Map((this._graphNodes || []).map(d => [d.id, d]))
+      const hadLayout = prev.size > 0
+      const nodes = this.graphData.nodes.map(n => {
+        const p = prev.get(n.public_id)
+        return { id: n.public_id, emoji: n.emoji, x: p && p.x, y: p && p.y }
+      })
+      this._graphNodes = nodes
       const links = this.graphData.edges.map(e => ({ source: e.user_a_id, target: e.user_b_id }))
 
       // Degree drives node size (bigger = more connections) and, via adjacency,
@@ -197,7 +214,8 @@ function boardApp() {
       // Adaptive layout: repulsion, collision and link length all derive from
       // node size and count, so a 200-person room spreads out instead of
       // collapsing into a ball. distanceMax caps long-range forces to keep big
-      // graphs stable and fast.
+      // graphs stable and fast. With a saved layout we start from a low alpha so
+      // a live update barely nudges the nodes instead of reshuffling them.
       const n = nodes.length
       const spread = 1 + Math.min(2, n / 120)
       const simulation = d3.forceSimulation(nodes)
@@ -209,6 +227,7 @@ function boardApp() {
         .force('x', d3.forceX(width / 2).strength(0.04))
         .force('y', d3.forceY(height / 2).strength(0.04))
         .force('collide', d3.forceCollide(d => radius(d) + 4))
+        .alpha(hadLayout ? 0.2 : 1)
 
       const link = layer.append('g')
         .selectAll('line')
@@ -241,28 +260,17 @@ function boardApp() {
         .attr('class', 'graph__emoji')
         .attr('font-size', d => Math.max(10, radius(d) * 1.1) + 'px')
 
-      // Names stay hidden until a node is focused — showing 200 labels at once
-      // is what makes the graph unreadable in the first place.
-      const label = node.append('text')
-        .text(d => d.name)
-        .attr('text-anchor', 'middle')
-        .attr('class', 'graph__label')
-        .attr('dy', d => radius(d) + 12)
-        .attr('opacity', 0)
-
       // Focus: dim everything except a node and its direct connections, and
-      // reveal their names. This is how relationships stay readable at scale.
+      // light up their edges. This is how relationships stay readable at scale.
       const focus = id => {
         const near = neighbors.get(id)
         node.attr('opacity', d => near.has(d.id) ? 1 : 0.12)
-        label.attr('opacity', d => near.has(d.id) ? 1 : 0)
         link
           .attr('stroke', d => (d.source.id === id || d.target.id === id) ? '#6366f1' : '#cbd5e1')
           .attr('stroke-opacity', d => (d.source.id === id || d.target.id === id) ? 0.9 : 0.06)
       }
       const clear = () => {
         node.attr('opacity', 1)
-        label.attr('opacity', 0)
         link.attr('stroke', '#cbd5e1').attr('stroke-opacity', 1)
       }
 
@@ -278,27 +286,30 @@ function boardApp() {
         })
       svg.on('click', () => { pinned = null; clear() })
 
-      // Zoom & pan. Node drags stop propagation (above) so they never pan.
+      // Zoom & pan. Node drags stop propagation (above) so they never pan. The
+      // current transform is remembered so live re-renders keep the same camera.
       const zoom = d3.zoom().scaleExtent([0.1, 8])
-        .on('zoom', event => layer.attr('transform', event.transform))
+        .on('zoom', event => { layer.attr('transform', event.transform); this._graphTransform = event.transform })
       svg.call(zoom)
+      if (this._graphTransform) svg.call(zoom.transform, this._graphTransform)
 
-      // Frame the whole graph once it settles, whatever its final size.
-      const fitToView = () => {
-        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
-        nodes.forEach(d => {
-          const r = radius(d)
-          x0 = Math.min(x0, d.x - r); y0 = Math.min(y0, d.y - r)
-          x1 = Math.max(x1, d.x + r); y1 = Math.max(y1, d.y + r)
+      // Only the first render frames the graph; later ones keep the user's view.
+      if (!this._graphTransform) {
+        simulation.on('end', () => {
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+          nodes.forEach(d => {
+            const r = radius(d)
+            x0 = Math.min(x0, d.x - r); y0 = Math.min(y0, d.y - r)
+            x1 = Math.max(x1, d.x + r); y1 = Math.max(y1, d.y + r)
+          })
+          if (!isFinite(x0)) return
+          const gw = x1 - x0, gh = y1 - y0
+          const scale = Math.min(8, 0.9 / Math.max(gw / width, gh / height))
+          const tx = width / 2 - scale * (x0 + gw / 2)
+          const ty = height / 2 - scale * (y0 + gh / 2)
+          svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
         })
-        if (!isFinite(x0)) return
-        const gw = x1 - x0, gh = y1 - y0
-        const scale = Math.min(8, 0.9 / Math.max(gw / width, gh / height))
-        const tx = width / 2 - scale * (x0 + gw / 2)
-        const ty = height / 2 - scale * (y0 + gh / 2)
-        svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
       }
-      simulation.on('end', fitToView)
 
       simulation.on('tick', () => {
         link

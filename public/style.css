@@ -712,7 +712,6 @@ emoji-picker {
 .graph__node { cursor: pointer; }
 .graph__node circle { transition: opacity 0.15s ease; }
 .graph__emoji { pointer-events: none; user-select: none; }
-.graph__label { pointer-events: none; user-select: none; font-size: 12px; font-weight: 600; fill: var(--text); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
 .graph-hint { margin: 8px 2px 0; font-size: 13px; color: var(--text-muted); text-align: center; }
 
 /* ── QUESTIONS TAB (admin) ── */
