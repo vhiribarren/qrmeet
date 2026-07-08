@@ -74,9 +74,9 @@ SOFTWARE.
 
         <!-- Tabs -->
         <div class="tabs">
-          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'top10' }" @click="tab = 'top10'" x-text="'Top ' + boardTopSize"></button>
-          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
           <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'join' }" @click="tab = 'join'">Join</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'graph' }" @click="tab = 'graph'; loadGraph()">Graph</button>
+          <button class="tabs__btn" :class="{ 'tabs__btn--active': tab === 'top10' }" @click="tab = 'top10'" x-text="'Top ' + boardTopSize"></button>
         </div>
       </div>
 
