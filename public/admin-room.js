@@ -177,36 +177,60 @@ function adminApp() {
 
       const svg = d3.select(container).append('svg')
         .attr('viewBox', `0 0 ${width} ${height}`)
+      // Everything lives inside this layer so zoom/pan is a single transform.
+      const layer = svg.append('g')
 
-      const nodes = this.graphData.nodes.map(n => ({ id: n.public_id, label: n.emoji + ' ' + n.display_name, emoji: n.emoji }))
+      const nodes = this.graphData.nodes.map(n => ({ id: n.public_id, name: n.display_name, emoji: n.emoji }))
       const links = this.graphData.edges.map(e => ({ source: e.user_a_id, target: e.user_b_id }))
 
-      const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(80))
-        .force('charge', d3.forceManyBody().strength(-200))
-        .force('x', d3.forceX(width / 2).strength(0.05))
-        .force('y', d3.forceY(height / 2).strength(0.05))
-        .force('collide', d3.forceCollide(28))
+      // Degree drives node size (bigger = more connections) and, via adjacency,
+      // the focus/highlight interaction.
+      const neighbors = new Map(nodes.map(n => [n.id, new Set([n.id])]))
+      const degree = new Map(nodes.map(n => [n.id, 0]))
+      this.graphData.edges.forEach(e => {
+        neighbors.get(e.user_a_id)?.add(e.user_b_id)
+        neighbors.get(e.user_b_id)?.add(e.user_a_id)
+        degree.set(e.user_a_id, (degree.get(e.user_a_id) || 0) + 1)
+        degree.set(e.user_b_id, (degree.get(e.user_b_id) || 0) + 1)
+      })
+      const radius = d => Math.max(6, Math.min(34, 5 + Math.sqrt(degree.get(d.id) || 0) * 4.5))
 
-      const link = svg.append('g')
+      // Adaptive layout: repulsion, collision and link length all derive from
+      // node size and count, so a 200-person room spreads out instead of
+      // collapsing into a ball. distanceMax caps long-range forces to keep big
+      // graphs stable and fast.
+      const n = nodes.length
+      const spread = 1 + Math.min(2, n / 120)
+      const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id)
+          .distance(d => radius(d.source) + radius(d.target) + 26 * spread))
+        .force('charge', d3.forceManyBody()
+          .strength(d => -(radius(d) * 8 + 40) * spread)
+          .distanceMax(Math.max(width, height)))
+        .force('x', d3.forceX(width / 2).strength(0.04))
+        .force('y', d3.forceY(height / 2).strength(0.04))
+        .force('collide', d3.forceCollide(d => radius(d) + 4))
+
+      const link = layer.append('g')
         .selectAll('line')
         .data(links)
         .join('line')
-        .attr('stroke', '#e5e7eb')
-        .attr('stroke-width', 2)
+        .attr('stroke', '#cbd5e1')
+        .attr('stroke-width', 1.5)
 
-      const node = svg.append('g')
+      const node = layer.append('g')
         .selectAll('g')
         .data(nodes)
         .join('g')
+        .attr('class', 'graph__node')
         .call(d3.drag()
-          .on('start', (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-          .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+          .on('start', (event, d) => { event.sourceEvent.stopPropagation(); d.moved = false; if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+          .on('drag', (event, d) => { d.moved = true; d.fx = event.x; d.fy = event.y; })
           .on('end', (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
         )
 
       node.append('circle')
-        .attr('r', 20)
+        .attr('r', radius)
         .attr('fill', '#eef2ff')
         .attr('stroke', '#6366f1')
         .attr('stroke-width', 2)
@@ -215,20 +239,75 @@ function adminApp() {
         .text(d => d.emoji)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('font-size', '16px')
+        .attr('class', 'graph__emoji')
+        .attr('font-size', d => Math.max(10, radius(d) * 1.1) + 'px')
 
-      const r = 22
+      // Names stay hidden until a node is focused — showing 200 labels at once
+      // is what makes the graph unreadable in the first place.
+      const label = node.append('text')
+        .text(d => d.name)
+        .attr('text-anchor', 'middle')
+        .attr('class', 'graph__label')
+        .attr('dy', d => radius(d) + 12)
+        .attr('opacity', 0)
+
+      // Focus: dim everything except a node and its direct connections, and
+      // reveal their names. This is how relationships stay readable at scale.
+      const focus = id => {
+        const near = neighbors.get(id)
+        node.attr('opacity', d => near.has(d.id) ? 1 : 0.12)
+        label.attr('opacity', d => near.has(d.id) ? 1 : 0)
+        link
+          .attr('stroke', d => (d.source.id === id || d.target.id === id) ? '#6366f1' : '#cbd5e1')
+          .attr('stroke-opacity', d => (d.source.id === id || d.target.id === id) ? 0.9 : 0.06)
+      }
+      const clear = () => {
+        node.attr('opacity', 1)
+        label.attr('opacity', 0)
+        link.attr('stroke', '#cbd5e1').attr('stroke-opacity', 1)
+      }
+
+      let pinned = null
+      node
+        .on('mouseenter', (event, d) => { if (!pinned) focus(d.id) })
+        .on('mouseleave', () => { if (!pinned) clear() })
+        .on('click', (event, d) => {
+          event.stopPropagation()
+          if (d.moved) { d.moved = false; return } // a drag, not a real click
+          pinned = pinned === d.id ? null : d.id
+          pinned ? focus(pinned) : clear()
+        })
+      svg.on('click', () => { pinned = null; clear() })
+
+      // Zoom & pan. Node drags stop propagation (above) so they never pan.
+      const zoom = d3.zoom().scaleExtent([0.1, 8])
+        .on('zoom', event => layer.attr('transform', event.transform))
+      svg.call(zoom)
+
+      // Frame the whole graph once it settles, whatever its final size.
+      const fitToView = () => {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+        nodes.forEach(d => {
+          const r = radius(d)
+          x0 = Math.min(x0, d.x - r); y0 = Math.min(y0, d.y - r)
+          x1 = Math.max(x1, d.x + r); y1 = Math.max(y1, d.y + r)
+        })
+        if (!isFinite(x0)) return
+        const gw = x1 - x0, gh = y1 - y0
+        const scale = Math.min(8, 0.9 / Math.max(gw / width, gh / height))
+        const tx = width / 2 - scale * (x0 + gw / 2)
+        const ty = height / 2 - scale * (y0 + gh / 2)
+        svg.transition().duration(400).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale))
+      }
+      simulation.on('end', fitToView)
+
       simulation.on('tick', () => {
         link
           .attr('x1', d => d.source.x)
           .attr('y1', d => d.source.y)
           .attr('x2', d => d.target.x)
           .attr('y2', d => d.target.y)
-        node.attr('transform', d => {
-          d.x = Math.max(r, Math.min(width - r, d.x))
-          d.y = Math.max(r, Math.min(height - r, d.y))
-          return `translate(${d.x},${d.y})`
-        })
+        node.attr('transform', d => `translate(${d.x},${d.y})`)
       })
     },
 
