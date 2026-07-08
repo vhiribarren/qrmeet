@@ -63,7 +63,9 @@
   [Keep a Changelog](https://keepachangelog.com/) format. Add the entry under
   `[Unreleased]` in the appropriate category (`Added` / `Changed` / `Fixed` /
   `Removed` / `Deprecated` / `Security`), written for users of the app rather
-  than as a commit message. Keep each entry short — ideally a single line.
+  than as a commit message. Keep each entry to a single short sentence
+  describing *what* changed from the user's point of view — no sub-clauses
+  explaining the *how* or the implementation details.
   Purely internal changes (refactors, tests, docs,
   tooling) do not need an entry. Releases use a pragmatic `major.minor.patch`
   scheme (not strict SemVer): **major** for massive evolutions, **minor** for
