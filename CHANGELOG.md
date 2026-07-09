@@ -19,19 +19,19 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 ### Added
 
-- The app version and build revision are now shown on the landing and About pages.
+- App version and build revision on the landing and About pages.
 
 ## [1.1.0] - 2026-07-08
 
 ### Changed
 
 - Board tabs reordered to Join, Graph, Top score, opening on Join.
-- The encounter graph now supports zoom, pan, and node focus, and stays readable
+- The encounter graph supports zoom, pan, and node focus, and stays readable
   in large rooms.
 
 ### Fixed
 
-- The leaderboard meeting total now matches the admin page.
+- Leaderboard meeting total matches the admin page.
 
 ## [1.0.1] - 2026-07-05
 

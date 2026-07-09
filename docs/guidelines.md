@@ -65,7 +65,10 @@
   `Removed` / `Deprecated` / `Security`), written for users of the app rather
   than as a commit message. Keep each entry to a single short sentence
   describing *what* changed from the user's point of view — no sub-clauses
-  explaining the *how* or the implementation details.
+  explaining the *how* or the implementation details. State the change
+  directly: name the thing added or fixed, don't narrate that the app "now"
+  does it (write "Version and build revision on the landing and About pages",
+  not "The version is now shown on the landing and About pages").
   Purely internal changes (refactors, tests, docs,
   tooling) do not need an entry. Releases use a pragmatic `major.minor.patch`
   scheme (not strict SemVer): **major** for massive evolutions, **minor** for
