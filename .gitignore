@@ -3,5 +3,6 @@ node_modules/
 .vscode/
 dist/
 wrangler.toml
+public/version.json
 test-results/
 playwright-report/

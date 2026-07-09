@@ -29,9 +29,7 @@
  * This lets deployment-specific values (the D1 database id, the custom domain)
  * stay out of the public repository: they are provided as encrypted build
  * variables in the Cloudflare Workers Builds settings and injected here at
- * deploy time. Run as the Cloudflare "build command":
- *
- *   node scripts/gen-wrangler.mjs
+ * deploy time. Runs in CI as part of the "build command" `npm run build`.
  *
  * The generated wrangler.toml is gitignored and must never be committed.
  */

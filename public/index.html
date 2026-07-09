@@ -138,6 +138,8 @@ SOFTWARE.
           </div>
         </div>
       </div>
+
+      <p class="landing__version" x-show="buildVersion" x-text="buildVersion"></p>
     </div>
 
     <!-- ── CARD PAGE ── -->
@@ -309,6 +311,7 @@ SOFTWARE.
                @contextmenu.prevent><img src="/icon.svg" alt="QRMeet logo"></div>
           <h1 class="about__title">QRMeet</h1>
           <p class="about__tagline">Scan people, have conversations, earn points.</p>
+          <p class="about__version" x-show="buildVersion" x-text="buildVersion"></p>
         </div>
 
         <section class="about__section" x-show="installPromptEvent || isIosInstallable">

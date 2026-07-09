@@ -17,6 +17,10 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 ## [Unreleased]
 
+### Added
+
+- The app version and build revision are now shown on the landing and About pages.
+
 ## [1.1.0] - 2026-07-08
 
 ### Changed

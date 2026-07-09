@@ -7,8 +7,12 @@
     "node": ">=22"
   },
   "scripts": {
+    "predev": "npm run gen:version",
     "dev": "wrangler dev",
+    "predeploy": "npm run gen:version",
     "deploy": "wrangler deploy",
+    "build": "npm run gen:version && npm run gen:wrangler",
+    "gen:version": "node scripts/gen-version.mjs",
     "gen:wrangler": "node scripts/gen-wrangler.mjs",
     "db:migrate": "wrangler d1 migrations apply qrmeet-db",
     "simulate": "tsx scripts/simulate.ts",

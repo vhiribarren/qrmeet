@@ -128,13 +128,14 @@ The Durable Object (`DurableRoom`) is registered automatically via the `[[migrat
 `wrangler.toml` is gitignored, so it is never committed — that keeps your own
 `database_id` and custom domain out of the (public) repository. To let
 [Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)
-deploy on every push, the config is generated at build time from
-`wrangler.ci.toml` (committed, with `${DATABASE_ID}` / `${DEPLOY_DOMAIN}`
-placeholders) by `scripts/gen-wrangler.mjs`.
+deploy on every push, `npm run build` generates two build-time files: the config
+from `wrangler.ci.toml` (committed, with `${DATABASE_ID}` / `${DEPLOY_DOMAIN}`
+placeholders) via `scripts/gen-wrangler.mjs`, and `public/version.json` (the
+build identifier shown in the app footer) via `scripts/gen-version.mjs`.
 
 In the Workers Builds settings of your Cloudflare project:
 
-- **Build command:** `npm ci && npm run gen:wrangler`
+- **Build command:** `npm ci && npm run build`
 - **Deploy command:** `npx wrangler deploy` (the default)
 - **Build variables** (encrypted — these hold the values kept out of the repo):
   - `DATABASE_ID` — the D1 database id from `wrangler d1 create`
@@ -151,7 +152,9 @@ Any additional value you want to keep private can be turned into a
 |---|---|
 | `npm run dev` | Local dev server (wrangler, port 8787) |
 | `npm run deploy` | Deploy to Cloudflare |
-| `npm run gen:wrangler` | Generate `wrangler.toml` from `wrangler.ci.toml` (used by CI; needs `DATABASE_ID` / `DEPLOY_DOMAIN` env vars) |
+| `npm run build` | CI build command: generate `public/version.json` and `wrangler.toml` |
+| `npm run gen:version` | Generate `public/version.json` (the build identifier shown in the footer); runs automatically before `dev` / `deploy` |
+| `npm run gen:wrangler` | Generate `wrangler.toml` from `wrangler.ci.toml` (needs `DATABASE_ID` / `DEPLOY_DOMAIN` env vars) |
 | `npm run db:migrate` | Apply D1 migrations locally |
 | `npm run db:migrate -- --remote` | Apply D1 migrations on production |
 | `npm test` | Run the Vitest suite — `workers` (unit + Workers integration) and `frontend` (Alpine component logic) projects |

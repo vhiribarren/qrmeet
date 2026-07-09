@@ -150,11 +150,19 @@ export function qrmeet() {
     wsConnectedBefore: false,
     wsStatus: 'connecting', // 'offline' | 'connecting' | 'online' — drives the connection indicator
 
+    // Build identifier (git describe), fetched from the static /version.json
+    // and shown on the landing + about pages.
+    buildVersion: '',
+
     // Emoji palette
     emojis: [], // no longer used — emoji-picker-element handles this
 
     // ── Init ──
     async init() {
+      // Fire-and-forget: fetch build metadata for the landing/about footer.
+      // Never blocks routing, and silently no-ops if the endpoint is unreachable.
+      this.loadVersion()
+
       // Check for iOS Safari (not standalone). On iOS we deliberately do NOT
       // suggest "Add to Home Screen": a home-screen web app has a storage
       // container separate from Safari's, so a player who joined in Safari and
@@ -297,6 +305,17 @@ export function qrmeet() {
       }
 
       this.page = 'landing'
+    },
+
+    async loadVersion() {
+      try {
+        const { ok, data } = await apiFetch('/version.json')
+        if (ok && data) {
+          this.buildVersion = data.version || ''
+        }
+      } catch {
+        // Non-critical: leave the version footer empty on failure.
+      }
     },
 
     // ── Storage ──
