@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { appState, createRoom, createTreasure, joinRoom, newPhone, waitWsOnline } from './helpers'
+import { appState, createRoom, createTreasure, joinRoom, newPhone, passConsent, waitWsOnline } from './helpers'
 
 // Treasures created with points:null inherit the room default (TREASURE_DEFAULT_POINTS,
 // default 2). We read the awarded amount from the score rather than hard-coding it.
@@ -15,6 +15,7 @@ test('treasure claim by a brand-new visitor (auto-join)', async ({ browser, requ
   const t = await newPhone(browser)
 
   await t.page.goto(`/r/${room.roomId}/treasure/${treasureId}`)
+  await passConsent(t.page) // consent gate: nothing is created until the visitor agrees
   await expectTreasureScreen(t.page)
 
   // An account was created on the fly and the score reflects the award.
@@ -54,11 +55,12 @@ test('re-claiming the same treasure is a no-op', async ({ browser, request }) =>
   const p = await newPhone(browser)
 
   await p.page.goto(`/r/${room.roomId}/treasure/${treasureId}`)
+  await passConsent(p.page) // first visit: brand-new visitor, gate shown
   await expectTreasureScreen(p.page)
   await expect.poll(async () => (await appState(p.page)).score).toBeGreaterThan(0)
   const earned = (await appState(p.page)).score
 
-  // Second visit → "already collected", score unchanged.
+  // Second visit → already a member, no gate → "already collected", score unchanged.
   await p.page.goto(`/r/${room.roomId}/treasure/${treasureId}`)
   await expect(p.page.getByTestId('scan-treasure-dup')).toBeVisible()
   await expect.poll(async () => (await appState(p.page)).score).toBe(earned)
@@ -66,7 +68,8 @@ test('re-claiming the same treasure is a no-op', async ({ browser, request }) =>
   await p.ctx.close()
 })
 
-// Cross-room treasure is gated by the same switch dialog as scans.
+// Cross-room treasure is gated by the same entry consent screen as scans, which
+// warns about leaving the current room.
 test('cross-room treasure, declined: not claimed, stays in current room', async ({ browser, request }) => {
   const r1 = await createRoom(request)
   const r2 = await createRoom(request)
@@ -74,8 +77,9 @@ test('cross-room treasure, declined: not claimed, stays in current room', async 
   const p = await newPhone(browser)
   const before = await joinRoom(p.page, r1.roomId)
 
-  p.page.on('dialog', (d) => d.dismiss())
   await p.page.goto(`/r/${r2.roomId}/treasure/${treasureId}`)
+  await expect(p.page.getByTestId('consent-switch-warning')).toBeVisible()
+  await p.page.getByTestId('consent-cancel').click()
   await expect(p.page.getByTestId('page-card')).toBeVisible()
 
   const after = await appState(p.page)
@@ -92,8 +96,8 @@ test('cross-room treasure, accepted: switches room and claims', async ({ browser
   const p = await newPhone(browser)
   const before = await joinRoom(p.page, r1.roomId)
 
-  p.page.on('dialog', (d) => d.accept())
   await p.page.goto(`/r/${r2.roomId}/treasure/${treasureId}`)
+  await passConsent(p.page)
   await expectTreasureScreen(p.page)
 
   const after = await appState(p.page)

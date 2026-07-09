@@ -83,6 +83,11 @@ app.route('/r', frontend)
 // CSP middleware applies, like the other HTML pages.
 app.get('/admin', (c) => servePage(c, 'admin.html'))
 
+// Standalone Privacy Policy page. Routed through the worker (not a native asset
+// fallback) so the CSP middleware applies, like the other HTML pages. Reachable
+// before joining a room, so a visitor can read it from the entry consent screen.
+app.get('/privacy', (c) => servePage(c, 'privacy.html'))
+
 // Explicitly serve index.html for the root path.
 // We cannot rely on Wrangler's native SPA routing (`not_found_handling = "single-page-application"`)
 // because native asset fallbacks bypass the worker entirely. This would result in the edge

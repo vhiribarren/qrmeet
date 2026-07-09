@@ -193,18 +193,22 @@ describe('handleWsMessage', () => {
 })
 
 describe('_handleScannedUrl', () => {
-  function scanApp(overrides: Record<string, unknown> = {}): any {
+  // A member of `memberRoom` (its session lives in localStorage). Passing null
+  // models a brand-new visitor with no saved session.
+  function scanApp(memberRoom: string | null, overrides: Record<string, unknown> = {}): any {
     const app = makeApp(overrides)
     app.closeScanner = vi.fn()
     app.ensureUser = vi.fn(async () => {})
     app.doScan = vi.fn(async () => {})
     app.claimTreasure = vi.fn(async () => {})
     app.joinRoom = vi.fn(async () => {})
+    app.loadRoomName = vi.fn(async () => {})
+    app.loadSaved = vi.fn(() => (memberRoom ? { me: app.me, roomId: memberRoom } : null))
     return app
   }
 
-  it('routes a same-room scan URL to doScan', async () => {
-    const app = scanApp({ roomId: 'room1' })
+  it('routes a same-room scan URL to doScan (already a member, no gate)', async () => {
+    const app = scanApp('room1', { roomId: 'room1' })
 
     await app._handleScannedUrl('https://host/r/room1/scan/p9?t=tok')
 
@@ -212,25 +216,26 @@ describe('_handleScannedUrl', () => {
     expect(app.doScan).toHaveBeenCalledWith('p9', 'tok')
   })
 
-  it('routes a treasure URL to claimTreasure', async () => {
-    const app = scanApp({ roomId: 'room1' })
+  it('routes a same-room treasure URL to claimTreasure (already a member)', async () => {
+    const app = scanApp('room1', { roomId: 'room1' })
 
     await app._handleScannedUrl('https://host/r/room1/treasure/t5')
 
     expect(app.claimTreasure).toHaveBeenCalledWith('t5')
   })
 
-  it('routes a bare room URL to joinRoom', async () => {
-    const app = scanApp({ roomId: null })
+  it('opens the consent gate for a brand-new deep link instead of auto-joining', async () => {
+    const app = scanApp(null, { roomId: null })
 
     await app._handleScannedUrl('https://host/r/room9')
 
-    expect(app.joinCode).toBe('room9')
-    expect(app.joinRoom).toHaveBeenCalled()
+    expect(app.page).toBe('consent')
+    expect(app.pendingEntry).toMatchObject({ type: 'room', roomId: 'room9' })
+    expect(app.joinRoom).not.toHaveBeenCalled()
   })
 
   it('rejects a non-QRMeet URL with a toast', async () => {
-    const app = scanApp({ roomId: 'room1' })
+    const app = scanApp('room1', { roomId: 'room1' })
 
     await app._handleScannedUrl('https://host/somewhere/else')
 
@@ -238,13 +243,96 @@ describe('_handleScannedUrl', () => {
     expect(app.doScan).not.toHaveBeenCalled()
   })
 
-  it('does not scan a different-room QR when the switch is declined', async () => {
-    const app = scanApp({ roomId: 'room1' })
-    vi.stubGlobal('confirm', () => false)
+  it('opens the consent gate (with a prior session) for a different-room scan', async () => {
+    const app = scanApp('room1', { roomId: 'room1' })
 
     await app._handleScannedUrl('https://host/r/room2/scan/p9?t=tok')
 
+    expect(app.page).toBe('consent')
+    expect(app.pendingEntry).toMatchObject({ type: 'scan', roomId: 'room2' })
+    expect(app.pendingEntry.priorSession).toMatchObject({ roomId: 'room1' })
     expect(app.doScan).not.toHaveBeenCalled()
+  })
+})
+
+describe('entry consent gate', () => {
+  function gateApp(memberRoom: string | null, overrides: Record<string, unknown> = {}): any {
+    const app = makeApp(overrides)
+    app.ensureUser = vi.fn(async () => {})
+    app.doScan = vi.fn(async () => {})
+    app.claimTreasure = vi.fn(async () => {})
+    app.joinRoom = vi.fn(async () => {})
+    app.enterRoom = vi.fn(async () => {})
+    app.performSwitchRoom = vi.fn()
+    app.loadRoomName = vi.fn(async () => {})
+    app.loadSaved = vi.fn(() => (memberRoom ? { me: app.me, roomId: memberRoom } : null))
+    return app
+  }
+
+  it('requestEntry runs the action directly when already a member', async () => {
+    const app = gateApp('room1', { roomId: 'room1' })
+
+    await app.requestEntry({ type: 'scan', roomId: 'room1', scanneePublicId: 'p9', qrToken: 'tok' })
+
+    expect(app.page).toBe('scan')
+    expect(app.doScan).toHaveBeenCalledWith('p9', 'tok')
+    expect(app.pendingEntry).toBeNull()
+  })
+
+  it('requestEntry defers everything behind the gate for a new visitor', async () => {
+    const app = gateApp(null, { roomId: null })
+
+    await app.requestEntry({ type: 'treasure', roomId: 'room9', treasureId: 't5' })
+
+    expect(app.page).toBe('consent')
+    expect(app.pendingEntry).toMatchObject({ type: 'treasure', roomId: 'room9', priorSession: null })
+    // Nothing is created until confirmEntry().
+    expect(app.ensureUser).not.toHaveBeenCalled()
+    expect(app.claimTreasure).not.toHaveBeenCalled()
+  })
+
+  it('confirmEntry creates the account and runs the parked scan', async () => {
+    const app = gateApp(null, { roomId: null })
+    await app.requestEntry({ type: 'scan', roomId: 'room9', scanneePublicId: 'p9', qrToken: 'tok' })
+
+    await app.confirmEntry()
+
+    expect(app.ensureUser).toHaveBeenCalled()
+    expect(app.doScan).toHaveBeenCalledWith('p9', 'tok')
+    expect(app.pendingEntry).toBeNull()
+  })
+
+  it('confirmEntry resets the old room first when switching', async () => {
+    const app = gateApp('room1', { roomId: 'room1' })
+    await app.requestEntry({ type: 'room', roomId: 'room2' })
+
+    await app.confirmEntry()
+
+    expect(app.performSwitchRoom).toHaveBeenCalled()
+    expect(app.joinRoom).toHaveBeenCalled()
+  })
+
+  it('cancelEntry restores the prior room and creates nothing', async () => {
+    const app = gateApp('room1', { roomId: 'room1' })
+    await app.requestEntry({ type: 'scan', roomId: 'room2', scanneePublicId: 'p9', qrToken: 'tok' })
+
+    app.cancelEntry()
+
+    expect(app.enterRoom).toHaveBeenCalled()
+    expect(app.roomId).toBe('room1')
+    expect(app.doScan).not.toHaveBeenCalled()
+    expect(app.pendingEntry).toBeNull()
+  })
+
+  it('cancelEntry returns a first-time visitor to the landing page', async () => {
+    const app = gateApp(null, { roomId: null })
+    await app.requestEntry({ type: 'room', roomId: 'room9' })
+
+    app.cancelEntry()
+
+    expect(app.page).toBe('landing')
+    expect(app.roomId).toBeNull()
+    expect(app.joinRoom).not.toHaveBeenCalled()
   })
 })
 

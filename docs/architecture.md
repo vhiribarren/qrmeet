@@ -280,6 +280,25 @@ Object socket in `CLOSING`), so the connection test simulates the lost socket an
 
 ## Design decisions
 
+### Entry consent before auto-registration
+
+Opening any deep link — a room URL (`/r/:roomId`), a scan URL, or a treasure URL —
+used to call `POST /users` immediately, creating a pseudonymous account in D1
+before the visitor had done anything or seen any privacy information. The client
+now routes every deep-link entry through a single `requestEntry()` chokepoint
+(`public/app.js`) that shows a **consent screen** (`page === 'consent'`) first and
+defers account creation to `confirmEntry()`. Until the visitor taps "Join &
+continue", nothing is written — neither in D1 nor in `localStorage` — and a
+"Not now" restores the room they were already in (or returns to the landing page).
+A visitor who already has a session for the target room skips the screen entirely.
+
+The privacy notice is served as a standalone, shareable page (`/privacy` →
+`public/privacy.html`, routed through the worker so the CSP middleware applies),
+linked from the consent screen, the landing page, and the About page — which now
+carries a short summary rather than a second copy, keeping `privacy.html` the
+single canonical source. This is a **client-only** change: the server API is
+unchanged, so a non-browser client can still call `POST /users` directly.
+
 ### Client-side password hashing (double-hash)
 
 The admin password is hashed client-side (SHA-256 via Web Crypto) before being sent to the server. The server then hashes the received value a second time before storing it.

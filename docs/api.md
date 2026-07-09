@@ -22,10 +22,17 @@ HTML pages served by the worker. All paths below return the corresponding HTML f
 | Path | File | Description |
 |---|---|---|
 | `/` | `index.html` | Landing page — create or join a room |
+| `/privacy` | `privacy.html` | Standalone Privacy Policy — readable without joining, linked from the consent screen, the landing page, and the About page |
 | `/admin` | `admin.html` | Admin console — device-local launcher for the rooms the organiser administers (see [Admin keychain](architecture.md#admin-keychain)). Reached via a hidden long-press on the About logo, the PWA manifest shortcut, or directly by URL. |
-| `/r/:roomId` | `index.html` | Auto-joins the room, shows card view |
-| `/r/:roomId/scan/:publicId?t=<token>` | `index.html` | QR scan landing — processes scan then redirects to card |
-| `/r/:roomId/treasure/:treasureId` | `index.html` | Treasure QR landing — claims the treasure then redirects to card |
+| `/r/:roomId` | `index.html` | Shows the entry consent screen, then joins the room and shows the card view |
+| `/r/:roomId/scan/:publicId?t=<token>` | `index.html` | QR scan landing — consent screen (new/switching visitor), then processes the scan and redirects to card |
+| `/r/:roomId/treasure/:treasureId` | `index.html` | Treasure QR landing — consent screen (new/switching visitor), then claims the treasure and redirects to card |
+
+> **Entry consent.** Opening any deep link (`/r/:roomId`, a scan, or a treasure)
+> no longer auto-registers the visitor. The client shows a consent screen first
+> and calls `POST /api/rooms/:roomId/users` only after the visitor confirms — so
+> nothing is stored (server or `localStorage`) until then. A visitor who already
+> has a session for that room skips the screen. The server API is unchanged.
 | `/r/:roomId/board` | `board.html` | Public leaderboard & graph (no auth) |
 | `/r/:roomId/admin` | `admin-room.html` | Admin dashboard for one room (password-protected) |
 

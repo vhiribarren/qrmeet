@@ -133,6 +133,13 @@ export function qrmeet() {
     cameraBlocked: false,
     treasureAward: { points: 0, label: '' }, // last treasure claimed
 
+    // Entry consent gate — opening a scan/treasure/room deep link no longer
+    // auto-registers the visitor. pendingEntry holds the action to run *after*
+    // the user confirms on the 'consent' page; until then nothing is created
+    // (no POST /users, no localStorage). { type, roomId, …params, priorSession }.
+    pendingEntry: null,
+    pendingRoomName: '', // display-only room name fetched for the consent screen
+
     // PWA Install
     installPromptEvent: null,
     showInstallBanner: false,
@@ -216,25 +223,7 @@ export function qrmeet() {
       if (scanMatch) {
         const [, roomId, scanneePublicId] = scanMatch
         const qrToken = new URLSearchParams(location.search).get('t')
-
-        // Check if user is already in a different room
-        const saved = this.loadSaved()
-        if (saved?.roomId && saved.roomId !== roomId) {
-          if (confirm(`You are currently in room "${saved.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
-            this.performSwitchRoom()
-          } else {
-            this.me = saved.me
-            this.roomId = saved.roomId
-            await this.enterRoom()
-            return
-          }
-        }
-
-        this.roomId = roomId
-        this.page = 'scan'
-        this.scanState = 'scanning'
-        await this.ensureUser()
-        await this.doScan(scanneePublicId, qrToken)
+        await this.requestEntry({ type: 'scan', roomId, scanneePublicId, qrToken })
         return
       }
 
@@ -242,44 +231,18 @@ export function qrmeet() {
       const treasureMatch = path.match(/^\/r\/([^/]+)\/treasure\/([^/]+)$/)
       if (treasureMatch) {
         const [, roomId, treasureId] = treasureMatch
-
-        const saved = this.loadSaved()
-        if (saved?.roomId && saved.roomId !== roomId) {
-          if (confirm(`You are currently in room "${saved.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
-            this.performSwitchRoom()
-          } else {
-            this.me = saved.me
-            this.roomId = saved.roomId
-            await this.enterRoom()
-            return
-          }
-        }
-
-        this.roomId = roomId
-        this.page = 'scan'
-        this.scanState = 'scanning'
-        await this.ensureUser()
-        await this.claimTreasure(treasureId)
+        await this.requestEntry({ type: 'treasure', roomId, treasureId })
         return
       }
 
       // Handle room URL: /r/:roomId
       const roomMatch = path.match(/^\/r\/([^/]+)$/)
       if (roomMatch) {
-        const roomId = roomMatch[1]
-        const saved = this.loadSaved()
-        if (saved?.roomId && saved.roomId !== roomId) {
-          if (confirm(`You are currently in room "${saved.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
-            this.performSwitchRoom()
-          } else {
-            this.me = saved.me
-            this.roomId = saved.roomId
-            await this.enterRoom()
-            return
-          }
-        }
-        this.joinCode = roomId
-        await this.joinRoom()
+        // Returning from the Privacy page (opened via the About tab) carries a
+        // #about marker so we restore that tab instead of the default card.
+        const wantAbout = location.hash === '#about'
+        await this.requestEntry({ type: 'room', roomId: roomMatch[1] })
+        if (wantAbout && this.page === 'card') this.page = 'about'
         return
       }
 
@@ -481,6 +444,97 @@ export function qrmeet() {
       }
     },
 
+    // ── Entry consent gate ──
+    // Single chokepoint for every deep-link entry (scan / treasure / room). If
+    // the user already has a session for this room, consent was given on the
+    // first join, so run the action directly. Otherwise show the consent screen
+    // and defer everything — NO user is created (server or localStorage) until
+    // confirmEntry() runs. This is what makes "nothing is stored unless you
+    // agree" true for scan, treasure, and room links alike.
+    async requestEntry(entry) {
+      const { roomId } = entry
+      const saved = this.loadSaved()
+
+      // Already a member of this exact room → no gate, proceed straight away.
+      if (saved?.roomId === roomId && saved?.me) {
+        this.me = saved.me
+        this.roomId = roomId
+        await this._runEntry(entry)
+        return
+      }
+
+      // New join, or a session for a *different* room (a switch). Park the action
+      // behind the consent gate. priorSession lets a cancel restore the room the
+      // user was already in. this.roomId is deliberately left untouched — the
+      // template reads pendingEntry.roomId so no live socket is retargeted.
+      this.pendingEntry = { ...entry, priorSession: saved?.roomId && saved.roomId !== roomId ? saved : null }
+      this.pendingRoomName = ''
+      this.page = 'consent'
+      this.loadRoomName(roomId)
+    },
+
+    // Best-effort room name for a friendlier consent screen. GET /api/rooms/:id
+    // is public and stores nothing, so it is safe to call before consent.
+    async loadRoomName(roomId) {
+      try {
+        const { ok, data } = await apiFetch(`/api/rooms/${roomId}`)
+        if (ok && data?.name && this.pendingEntry?.roomId === roomId) {
+          this.pendingRoomName = data.name
+        }
+      } catch {}
+    },
+
+    // Execute a parked entry. For scan/treasure this is the cold-deep-link setup
+    // (ensureUser creates the account here, post-consent), then the game action.
+    async _runEntry(entry) {
+      const { type, roomId, scanneePublicId, qrToken, treasureId } = entry
+      if (type === 'room') {
+        this.joinCode = roomId
+        await this.joinRoom()
+        return
+      }
+      this.roomId = roomId
+      this.page = 'scan'
+      this.scanState = 'scanning'
+      try {
+        await this.ensureUser()
+      } catch (e) {
+        this.scanState = 'error'
+        this.scanError = e.message || 'Could not join room'
+        return
+      }
+      if (type === 'scan') await this.doScan(scanneePublicId, qrToken)
+      else await this.claimTreasure(treasureId)
+    },
+
+    // User agreed to enter — create the account (via _runEntry) and run the
+    // action. A switch from another room resets the old session first.
+    async confirmEntry() {
+      const entry = this.pendingEntry
+      if (!entry) return
+      this.pendingEntry = null
+      if (entry.priorSession) this.performSwitchRoom()
+      await this._runEntry(entry)
+    },
+
+    // User declined — nothing was created. Restore the room they were already in,
+    // or fall back to the landing page for a first-time visitor.
+    cancelEntry() {
+      const entry = this.pendingEntry
+      this.pendingEntry = null
+      this.pendingRoomName = ''
+      if (entry?.priorSession) {
+        this.me = entry.priorSession.me
+        this.roomId = entry.priorSession.roomId
+        this.enterRoom()
+        return
+      }
+      this.roomId = null
+      history.replaceState({}, '', '/')
+      this.savedSession = this.loadSaved()
+      this.page = 'landing'
+    },
+
     // ── Profile ──
     async saveName() {
       const name = this.nameInput.trim()
@@ -658,16 +712,7 @@ export function qrmeet() {
         // Room join QR: /r/{roomId}
         const roomMatch = parsed.pathname.match(/^\/r\/([^/]+)$/)
         if (roomMatch) {
-          const [, roomId] = roomMatch
-          if (this.roomId && roomId !== this.roomId) {
-            if (confirm(`You are currently in room "${this.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
-              this.performSwitchRoom()
-            } else {
-              return
-            }
-          }
-          this.joinCode = roomId
-          this.joinRoom()
+          await this.requestEntry({ type: 'room', roomId: roomMatch[1] })
           return
         }
 
@@ -688,26 +733,9 @@ export function qrmeet() {
             return
           }
 
-          // Block cross-room scans
-          if (this.roomId && roomId !== this.roomId) {
-            if (confirm(`You are currently in room "${this.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
-              this.performSwitchRoom()
-            } else {
-              return
-            }
-          }
-
-          this.roomId = roomId
-          this.page = 'scan'
-          this.scanState = 'scanning'
-          try {
-            await this.ensureUser()
-          } catch (e) {
-            this.scanState = 'error'
-            this.scanError = e.message || 'Could not join room'
-            return
-          }
-          this.doScan(scanneePublicId, qrToken)
+          // requestEntry handles same-room (no gate) vs. cross-room / new join
+          // (consent screen carries the room-switch warning).
+          await this.requestEntry({ type: 'scan', roomId, scanneePublicId, qrToken })
           return
         }
 
@@ -715,26 +743,7 @@ export function qrmeet() {
         const treasureMatch = parsed.pathname.match(/^\/r\/([^/]+)\/treasure\/([^/]+)$/)
         if (treasureMatch) {
           const [, roomId, treasureId] = treasureMatch
-
-          if (this.roomId && roomId !== this.roomId) {
-            if (confirm(`You are currently in room "${this.roomId}". Do you want to leave this room and join room "${roomId}"?`)) {
-              this.performSwitchRoom()
-            } else {
-              return
-            }
-          }
-
-          this.roomId = roomId
-          this.page = 'scan'
-          this.scanState = 'scanning'
-          try {
-            await this.ensureUser()
-          } catch (e) {
-            this.scanState = 'error'
-            this.scanError = e.message || 'Could not join room'
-            return
-          }
-          this.claimTreasure(treasureId)
+          await this.requestEntry({ type: 'treasure', roomId, treasureId })
           return
         }
 
@@ -1047,6 +1056,15 @@ export function qrmeet() {
     goTo(p) {
       this.page = p
       this.showEmojiPicker = false
+    },
+
+    // Open the standalone Privacy page from the About tab in the SAME tab,
+    // tagging the current history entry with #about so the browser Back button
+    // (and the page's own back link) returns to the About screen rather than the
+    // card. init() reads the marker on the way back; enterRoom() then drops it.
+    openPrivacy() {
+      history.replaceState({}, '', `/r/${this.roomId}#about`)
+      window.location.href = '/privacy'
     },
 
     // Return to the card from a scan/treasure error screen. Errors can fire before

@@ -101,10 +101,18 @@ export async function appState(page: Page): Promise<Identity> {
   })
 }
 
-// Join a room through a real navigation, wait until the card is ready (QR
-// rendered) and the live socket is up, then return the identity.
+// Pass the entry consent gate shown before any deep-link auto-join (scan /
+// treasure / room link for a new or switching visitor). Clicking "Join &
+// continue" is what actually creates the account.
+export async function passConsent(page: Page): Promise<void> {
+  await page.getByTestId('consent-join').click()
+}
+
+// Join a room through a real navigation, clear the consent gate, wait until the
+// card is ready (QR rendered) and the live socket is up, then return the identity.
 export async function joinRoom(page: Page, roomId: string): Promise<Identity> {
   await page.goto(`/r/${roomId}`)
+  await passConsent(page)
   await expect(page.getByTestId('page-card')).toBeVisible()
   await page.waitForFunction(() => {
     const a = (window as any).Alpine?.$data(document.querySelector('#app'))

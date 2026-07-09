@@ -20,6 +20,11 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 ### Added
 
 - App version and build revision on the landing and About pages.
+- Consent screen before joining a game, with a dedicated Privacy Policy page.
+
+### Changed
+
+- Scan, treasure, and room links ask for confirmation before creating a profile.
 
 ## [1.1.0] - 2026-07-08
 

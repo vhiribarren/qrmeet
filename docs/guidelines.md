@@ -44,7 +44,8 @@
   the following:
   - **GDPR/RGPD**: does the change involve new personal data about third parties (names,
     emails, roles, activity)? If so, flag it — the user (as data controller) must be
-    informed, and the Privacy section of the About screen may need updating.
+    informed, and the Privacy Policy (`public/privacy.html`, summarised on the
+    About screen) may need updating.
   - **ePrivacy**: no cookies or tracking may be introduced without raising the topic first.
 
   If a proposed change is not clearly compatible, raise the concern and propose adjustments
@@ -93,7 +94,8 @@
   - `docs/architecture.md` — data model, infrastructure, design decisions
   - `docs/api.md` — API routes and endpoint reference
   - `docs/flows.md` — user flows, state machines, sequence diagrams
-  - `public/index.html` (Privacy section) — if data collection or third-party services change
+  - `public/privacy.html` (canonical Privacy Policy) and `public/index.html`
+    (About-page Privacy summary) — if data collection or third-party services change
 - **English only.** By default, all strings, labels, error messages,
   placeholders, aria-labels, and comments must be in English.
 - **Tests.** Run `npm test` before pushing. When changing a worker route, its

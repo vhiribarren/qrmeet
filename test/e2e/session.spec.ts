@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { appState, createRoom, currentScanUrl, freshScanUrl, joinRoom, newPhone, waitForNotified, waitWsOnline } from './helpers'
+import { appState, createRoom, currentScanUrl, freshScanUrl, joinRoom, newPhone, passConsent, waitForNotified, waitWsOnline } from './helpers'
 
 // Entry, identity, persistence and connection-lifecycle behaviour — the pure
 // client-side logic in init() / loadSaved() / the WebSocket handlers, which the
@@ -129,15 +129,17 @@ test('stale session is cleared on reconnect', async ({ browser, request }) => {
   await b.ctx.close()
 })
 
-// Cross-room navigation is gated by a confirmation dialog.
+// Cross-room navigation is gated by the entry consent screen, which warns that
+// joining the new room leaves the current one.
 test('cross-room navigation, declined: stays in current room', async ({ browser, request }) => {
   const r1 = await createRoom(request)
   const r2 = await createRoom(request)
   const a = await newPhone(browser)
   await joinRoom(a.page, r1.roomId)
 
-  a.page.on('dialog', (d) => d.dismiss())
   await a.page.goto(`/r/${r2.roomId}`)
+  await expect(a.page.getByTestId('consent-switch-warning')).toBeVisible()
+  await a.page.getByTestId('consent-cancel').click()
   await expect(a.page.getByTestId('page-card')).toBeVisible()
   await expect.poll(async () => (await appState(a.page)).roomId).toBe(r1.roomId)
 
@@ -150,13 +152,53 @@ test('cross-room navigation, accepted: switches room with a new identity', async
   const a = await newPhone(browser)
   const before = await joinRoom(a.page, r1.roomId)
 
-  a.page.on('dialog', (d) => d.accept())
   await a.page.goto(`/r/${r2.roomId}`)
+  await passConsent(a.page)
   await expect(a.page.getByTestId('page-card')).toBeVisible()
   await waitWsOnline(a.page)
   const after = await appState(a.page)
   expect(after.roomId).toBe(r2.roomId)
   expect(after.publicId).not.toBe(before.publicId)
+
+  await a.ctx.close()
+})
+
+// The whole point of the gate: declining a fresh deep link creates no account
+// anywhere — no participant server-side, no saved session on the device.
+test('declining the consent gate creates nothing', async ({ browser, request }) => {
+  const room = await createRoom(request)
+  const a = await newPhone(browser)
+
+  await a.page.goto(`/r/${room.roomId}`)
+  await expect(a.page.getByTestId('consent-join')).toBeVisible()
+  await a.page.getByTestId('consent-cancel').click()
+
+  // Back on the landing page, no identity in the component…
+  await expect(a.page.getByRole('button', { name: 'Join a room' })).toBeVisible()
+  expect((await appState(a.page)).publicId).toBeFalsy()
+
+  // …and no participant was ever registered server-side.
+  const res = await request.get(`/api/rooms/${room.roomId}/board/scores`)
+  expect((await res.json()).totalParticipants).toBe(0)
+
+  await a.ctx.close()
+})
+
+// Opening the Privacy page from the About tab and pressing Back returns to the
+// About tab (not the card): the #about history marker is honoured on the way back.
+test('privacy page opened from About returns to About on back', async ({ browser, request }) => {
+  const room = await createRoom(request)
+  const a = await newPhone(browser)
+  await joinRoom(a.page, room.roomId)
+
+  await a.page.getByRole('button', { name: 'About' }).click()
+  await a.page.getByRole('link', { name: /Read the full Privacy Policy/ }).click()
+  await expect(a.page).toHaveURL(/\/privacy$/)
+
+  await a.page.getByText('← Back').click()
+  await expect(a.page.getByTestId('page-card')).toBeHidden()
+  await expect.poll(async () => (await appState(a.page)).roomId).toBe(room.roomId)
+  await expect.poll(() => a.page.evaluate(() => (window as any).Alpine.$data(document.querySelector('#app')).page)).toBe('about')
 
   await a.ctx.close()
 })

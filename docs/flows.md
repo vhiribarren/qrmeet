@@ -16,21 +16,24 @@ graph TD
     RootMode -- Yes --> Card[Card view]
     RootMode -- No --> LandingResume[Landing with Resume option]
 
-    RoomUrl["Open /r/:roomId"] --> RoomDiff{Saved session for a different room?}
-    RoomDiff -- Yes --> RoomConfirm{Confirm switch?}
-    RoomConfirm -- No --> CardOld[Card view of the current room]
-    RoomConfirm -- Yes --> RoomJoin[Reset state, join as new user] --> Card
-    RoomDiff -- No --> RoomSame[Join or resume this room] --> Card
-
-    ScanUrl[Open scan URL] --> ScanDiff{Saved session for a different room?}
-    ScanDiff -- Yes --> ScanConfirm{Confirm switch?}
-    ScanConfirm -- No --> CardOld
-    ScanConfirm -- Yes --> ScanSwitch[Reset state, auto-join new room] --> Scan[Process scan]
-    ScanDiff -- No --> ScanJoin[Auto-join if needed] --> Scan
+    Deep["Open a deep link (/r/:roomId, scan, or treasure)"] --> Member{Already a member of this room?}
+    Member -- Yes --> Action["Run the action (join / scan / claim)"] --> Card
+    Member -- No --> Consent["Consent screen (nothing stored yet)"]
+    Consent -- "Read Privacy" --> Privacy["/privacy page"]
+    Consent -- "Not now" --> Restore{Was in another room?}
+    Restore -- Yes --> CardOld[Card view of the current room]
+    Restore -- No --> Landing
+    Consent -- "Join & continue" --> Switch{Was in another room?}
+    Switch -- Yes --> Reset["Reset old session"] --> Action
+    Switch -- No --> Action
 ```
 
-The treasure URL (`/r/:roomId/treasure/:treasureId`) follows the same different-room
-confirmation gate as the scan URL, then claims the treasure (see [Treasure claim](#treasure-claim)).
+All deep links (`/r/:roomId`, the scan URL, and the treasure URL
+`/r/:roomId/treasure/:treasureId`) share the same **entry consent gate**: nothing
+is created — server-side or in `localStorage` — until the visitor taps
+"Join & continue". A visitor who already has a session for that room skips the
+screen. The scan URL then processes the scan and the treasure URL claims the
+treasure (see [Treasure claim](#treasure-claim)).
 
 ---
 
@@ -90,9 +93,9 @@ graph TD
     B --> ROOM{Same room?}
     ROOM -- No --> ERR0[This person is in a different room]
     ROOM -- Yes --> REG{User B has a session?}
-    REG -- No --> AUTOREG[Auto-join, random name and emoji assigned]
+    REG -- No --> CONSENT["Consent screen: join after consent (random name and emoji)"]
     REG -- Yes --> C{Valid QR token?}
-    AUTOREG --> C
+    CONSENT --> C
     C -- No --> ERR1[Invalid or expired QR]
     C -- Yes --> D{Existing encounter between A and B?}
 

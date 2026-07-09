@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!--
+MIT License
+
+Copyright (c) 2026 Vincent Hiribarren
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy – QRMeet</title>
+  <meta name="theme-color" content="#6366f1">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="board-wrap">
+    <div class="about">
+      <div class="about__header">
+        <div class="about__logo"><img src="/icon.svg" alt="QRMeet logo"></div>
+        <h1 class="about__title">Privacy Policy</h1>
+        <p class="about__tagline">How QRMeet handles your data.</p>
+      </div>
+
+      <section class="about__section">
+        <div class="about__section-body">
+          <p><strong>What is stored on your device</strong> — A pseudonymous game identifier, an authentication token, your chosen display name, emoji, and current room are saved in your browser's local storage (not cookies). If you organise rooms, their IDs and admin tokens are kept separately in an admin keychain. Resetting the game from the About screen erases your player session; the admin keychain is preserved so you stay signed in to the rooms you manage.</p>
+          <p><strong>Nothing is stored until you join</strong> — Opening a QRMeet link (a scan, a treasure, or a room link) no longer registers you automatically. No profile is created — on your device or on our servers — until you explicitly confirm that you want to enter the game.</p>
+          <p><strong>Why we keep a unique identifier</strong> — This pseudonymous identifier is what lets the app recognise you throughout an event — remembering the people you meet and keeping your score. It is not linked to your real-world identity. Storing it is strictly necessary to deliver the core functionality you have requested: without it the service simply cannot work, and it is processed on that legal basis (performance of the service). It is never used for advertising, profiling, or tracking you across other sites.</p>
+          <p><strong>What is stored on our servers</strong> — Your pseudonymous identifier, chosen display name, emoji, room membership, encounter history (who met whom and when), a rotating single-use QR token, and a salted hash of your IP address are stored in a Cloudflare database for the lifetime of the room — by default one week from its creation — after which they are automatically and permanently deleted. The exact deletion time is shown as a countdown on the room's board and admin pages.</p>
+          <p><strong>IP address</strong> — Your IP address is never stored in clear text. A salted, one-way hash of it is kept on your account for the lifetime of the room, so that the room's organiser can see a short fragment of that hash to spot duplicate or automated accounts. The raw address is used only in-memory to serve your requests and is never stored or shown in readable form.</p>
+          <p><strong>Cloudflare</strong> — This app runs on Cloudflare Workers and its CDN. Cloudflare automatically injects its own Web Analytics, which is cookieless: it gathers aggregated, anonymous traffic statistics without setting any tracking cookie or identifying you. Cloudflare processes request metadata (IP, user-agent, country) as a data processor and may set one or more strictly-necessary functional cookies (e.g. for bot protection or security challenges); these are required for the service to operate and are not used for tracking. See <a class="about__link" href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare's Privacy Policy</a>.</p>
+          <p><strong>No third-party trackers.</strong> No advertising network or social-media pixel is embedded, and — apart from Cloudflare's own cookieless analytics described above — no third-party analytics SDK is used in this app.</p>
+        </div>
+      </section>
+
+      <section class="about__section">
+        <!-- Fallback href="/" for a directly-opened or new-tab visit; when we
+             arrived here in the same tab from within the app (e.g. the entry
+             consent screen), go back to that exact previous screen instead. -->
+        <a class="btn btn--primary" href="/" data-back>← Back</a>
+      </section>
+    </div>
+  </div>
+  <script>
+    document.querySelector('[data-back]')?.addEventListener('click', (e) => {
+      let sameOrigin = false
+      try { sameOrigin = !!document.referrer && new URL(document.referrer).origin === location.origin } catch {}
+      if (sameOrigin && history.length > 1) { e.preventDefault(); history.back() }
+    })
+  </script>
+</body>
+</html>

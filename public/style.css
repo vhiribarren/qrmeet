@@ -160,6 +160,27 @@ html, body {
   text-align: center; margin-top: 24px;
   font-size: 12px; color: var(--text-muted);
 }
+.landing__privacy {
+  text-align: center; margin-top: 8px;
+  font-size: 12px; color: var(--text-muted); line-height: 1.5;
+}
+
+/* ── ENTRY CONSENT ── */
+.consent {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  text-align: center; min-height: 60vh; justify-content: center;
+}
+.consent__logo { width: 64px; height: 64px; border-radius: 14px; }
+.consent__title { font-size: 26px; font-weight: 800; }
+.consent__room { font-size: 16px; color: var(--text-muted); }
+.consent__body { font-size: 15px; color: var(--text-muted); line-height: 1.6; max-width: 360px; }
+.consent__warning {
+  font-size: 14px; line-height: 1.5; max-width: 360px;
+  padding: 12px 16px; border-radius: 12px;
+  background: #fef3c7; color: #92400e;
+}
+.consent__link { color: var(--primary); text-decoration: underline; font-size: 15px; font-weight: 600; }
+.consent__actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 320px; }
 
 /* ── RESUME CARD ── */
 .resume { display: flex; flex-direction: column; align-items: center; gap: 12px; }
@@ -833,6 +854,8 @@ emoji-picker {
   .install-banner { box-shadow: 0 4px 12px rgba(99,102,241,0.25); background: #16162a; }
 
   .pending { background: #1f1907; border-color: #78350f; }
+
+  .consent__warning { background: #1f1907; color: #fcd34d; }
   .score-item--pending { background: #1f1907; }
 
   .remove-btn:hover { background: #2d0f0f; }

@@ -112,6 +112,8 @@ SOFTWARE.
           <button class="btn btn--secondary" @click="openScanner()">📷 Scan room QR code</button>
           <button class="btn btn--ghost" @click="joinMode = false">Cancel</button>
         </div>
+
+        <p class="landing__privacy">By joining or creating a room you agree to our <a class="about__link" href="/privacy">Privacy Policy</a>.</p>
       </div>
 
       <!-- Create room modal -->
@@ -330,13 +332,9 @@ SOFTWARE.
         <section class="about__section">
           <h2 class="about__section-title">Privacy Notice</h2>
           <div class="about__section-body">
-            <p><strong>What is stored on your device</strong> — A pseudonymous game identifier, an authentication token, your chosen display name, emoji, and current room are saved in your browser's local storage (not cookies). If you organise rooms, their IDs and admin tokens are kept separately in an admin keychain. Tap "Reset game" below to erase your player session; the admin keychain is preserved so you stay signed in to the rooms you manage.</p>
-            <p><strong>Why we keep a unique identifier</strong> — This pseudonymous identifier is what lets the app recognise you throughout an event — remembering the people you meet and keeping your score. It is not linked to your real-world identity. Storing it is strictly necessary to deliver the core functionality you have requested: without it the service simply cannot work, and it is processed on that legal basis (performance of the service). It is never used for advertising, profiling, or tracking you across other sites.</p>
-            <p><strong>What is stored on our servers</strong> — Your pseudonymous identifier, chosen display name, emoji, room membership, encounter history (who met whom and when), a rotating single-use QR token, and a salted hash of your IP address are stored in a Cloudflare database for the lifetime of the room — by default one week from its creation — after which they are automatically and permanently deleted. The exact deletion time is shown as a countdown on the room's board and admin pages.</p>
-            <p><strong>IP address</strong> — Your IP address is never stored in clear text. A salted, one-way hash of it is kept on your account for the lifetime of the room, so that the room's organiser can see a short fragment of that hash to spot duplicate or automated accounts. The raw address is used only in-memory to serve your requests and is never stored or shown in readable form.</p>
-            <p><strong>Cloudflare</strong> — This app runs on Cloudflare Workers and its CDN. Cloudflare automatically injects its own Web Analytics, which is cookieless: it gathers aggregated, anonymous traffic statistics without setting any tracking cookie or identifying you. Cloudflare processes request metadata (IP, user-agent, country) as a data processor and may set one or more strictly-necessary functional cookies (e.g. for bot protection or security challenges); these are required for the service to operate and are not used for tracking. See <a class="about__link" href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare's Privacy Policy</a>.</p>
-            <p><strong>No third-party trackers.</strong> No advertising network or social-media pixel is embedded, and — apart from Cloudflare's own cookieless analytics described above — no third-party analytics SDK is used in this app.</p>
+            <p>QRMeet stores only the minimal, pseudonymous data needed to run the game — a random identifier, your display name, emoji, room membership, meeting history, and a salted hash of your IP address — for the lifetime of the room (by default one week), after which everything is automatically and permanently deleted. Nothing is created until you agree to join. No advertising, no profiling, no third-party trackers.</p>
           </div>
+          <a class="btn btn--secondary" href="/privacy" @click.prevent="openPrivacy()">Read the full Privacy Policy</a>
         </section>
 
         <section class="about__section">
@@ -371,6 +369,29 @@ SOFTWARE.
             <div class="about__lib"><span class="about__lib-name">unique-names-generator</span><span class="about__lib-badge">MIT</span></div>
           </div>
         </section>
+      </div>
+    </div>
+
+    <!-- ── ENTRY CONSENT PAGE ── -->
+    <!-- Shown before any deep-link auto-join (scan / treasure / room). Nothing is
+         created server-side or in localStorage until the user taps "Join". -->
+    <div class="page" x-show="page === 'consent'" x-transition:enter="page-enter" data-test="page-consent">
+      <div class="consent">
+        <img class="consent__logo" src="/icon.svg" alt="QRMeet logo">
+        <h2 class="consent__title">Join this game?</h2>
+        <p class="consent__room">Room <strong x-text="pendingRoomName || pendingEntry?.roomId"></strong></p>
+        <p class="consent__body">
+          To play, QRMeet creates an anonymous profile for you in this room and stores minimal
+          data (a random name, an emoji, and who you meet). Nothing is stored until you tap Join.
+        </p>
+        <p class="consent__warning" x-show="pendingEntry?.priorSession" data-test="consent-switch-warning">
+          ⚠️ You are currently in room <strong x-text="pendingEntry?.priorSession?.roomId"></strong>. Joining will leave it and reset your current score.
+        </p>
+        <a class="consent__link" href="/privacy">Read our Privacy Policy</a>
+        <div class="consent__actions">
+          <button class="btn btn--primary btn--large" @click="confirmEntry()" data-test="consent-join">Join &amp; continue</button>
+          <button class="btn btn--ghost" @click="cancelEntry()" data-test="consent-cancel">Not now</button>
+        </div>
       </div>
     </div>
 
