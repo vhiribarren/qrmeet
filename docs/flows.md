@@ -11,29 +11,45 @@ QRMeet is a networking game for in-person events. Participants scan each other's
 ```mermaid
 graph TD
     Root["Open /"] --> RootSaved{Saved session?}
-    RootSaved -- No --> Landing[Landing page]
+    RootSaved -- No --> RootPwa{"Standalone PWA + passkey support?"}
+    RootPwa -- Yes --> AutoFire["Auto-fire passkey ceremony"]
+    AutoFire -- Recovered --> Card
+    AutoFire -- "Cancel / none" --> Landing["Landing page (with Recover my profile)"]
+    RootPwa -- No --> Landing
     RootSaved -- Yes --> RootMode{Standalone PWA?}
     RootMode -- Yes --> Card[Card view]
     RootMode -- No --> LandingResume[Landing with Resume option]
 
     Deep["Open a deep link (/r/:roomId, scan, or treasure)"] --> Member{Already a member of this room?}
     Member -- Yes --> Action["Run the action (join / scan / claim)"] --> Card
-    Member -- No --> Consent["Consent screen (nothing stored yet)"]
+    Member -- No --> Probe{"Silent passkey probe (immediate mode, if supported)"}
+    Probe -- "Profile recovered (one biometric tap)" --> Action
+    Probe -- "No credential / unsupported" --> Consent["Consent screen (nothing stored yet)"]
     Consent -- "Read Privacy" --> Privacy["/privacy page"]
+    Consent -- "I already have a profile" --> Ceremony["Passkey ceremony"]
+    Ceremony -- "Profile in this room" --> Action
+    Ceremony -- "No profile here" --> LinkPane["Join as new, linked to the same passkey"] --> Join
     Consent -- "Not now" --> Restore{Was in another room?}
     Restore -- Yes --> CardOld[Card view of the current room]
     Restore -- No --> Landing
     Consent -- "Join & continue" --> Switch{Was in another room?}
-    Switch -- Yes --> Reset["Reset old session"] --> Action
-    Switch -- No --> Action
+    Switch -- Yes --> Reset["Reset old session"] --> Join["Create account + silent passkey setup (OS sheet only)"]
+    Switch -- No --> Join
+    Join --> Action
 ```
 
 All deep links (`/r/:roomId`, the scan URL, and the treasure URL
 `/r/:roomId/treasure/:treasureId`) share the same **entry consent gate**: nothing
 is created — server-side or in `localStorage` — until the visitor taps
 "Join & continue". A visitor who already has a session for that room skips the
-screen. The scan URL then processes the scan and the treasure URL claims the
-treasure (see [Treasure claim](#treasure-claim)).
+screen — and so does one whose profile is recovered by the silent passkey probe
+(consent was given at the original join). The scan URL then processes the scan
+and the treasure URL claims the treasure (see [Treasure claim](#treasure-claim)).
+
+After the Join tap, the passkey setup runs with **no app-level dialog**: only
+the OS sheet (Face ID / Touch ID) appears; cancelling it is remembered and never
+re-prompted on join (opt-in remains on the About page). See
+[`architecture.md` › Passkey-based profile recovery](architecture.md#passkey-based-profile-recovery).
 
 ---
 

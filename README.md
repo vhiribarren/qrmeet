@@ -54,6 +54,7 @@ Backend server:
 - Every user has a `publicId` (embedded in QR codes) and a `privateToken` (stored only in `localStorage`, never in QR codes). All mutating API calls require the `privateToken`.
 - QR codes embed a single-use opaque token fetched from the server. The token is burned on first scan, preventing QR replay and photo attacks.
 - A fresh QR token is automatically issued after each session starts, so the confirmation scan uses a different token than the initial scan.
+- On devices that support it, the profile is protected by an optional passkey (Face ID / Touch ID), so it can be recovered when the browser context is lost (installed PWA, cleared storage, in-app browsers). Only the passkey's public key is stored server-side.
 
 ## Local development
 

@@ -25,6 +25,7 @@
     "release": "release-it"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^13.3.2",
     "hono": "^4.6.0",
     "nanoid": "^5.0.7",
     "unique-names-generator": "^4.7.1"

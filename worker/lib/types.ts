@@ -30,6 +30,12 @@ export interface Env {
   MAX_PARTICIPANTS: string
   ROOM_TTL_DAYS: string
   TREASURE_DEFAULT_POINTS: string
+  WEBAUTHN_SECRET: string
+  // Dev-only overrides: `wrangler dev` with a custom_domain route rewrites the
+  // request URL/Host/Origin to the production domain, so the RP ID cannot be
+  // derived from the request there. Unset in production.
+  WEBAUTHN_RP_ID?: string
+  WEBAUTHN_ORIGIN?: string
 }
 
 export interface Room {
@@ -70,6 +76,23 @@ export interface Treasure {
   label: string
   points: number | null   // null = inherit room treasureDefaultPoints
   enabled: number
+  created_at: number
+}
+
+export interface Passkey {
+  credential_id: string   // base64url
+  public_key: string      // base64url (COSE public key bytes)
+  counter: number
+  transports: string | null   // JSON array or NULL
+  person_id: string       // opaque WebAuthn userHandle
+  created_at: number
+  last_used_at: number
+}
+
+export interface PasskeyLink {
+  credential_id: string
+  room_id: string
+  user_public_id: string
   created_at: number
 }
 

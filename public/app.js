@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { storage, adminKeychain } from './storage.js'
+import { storage, adminKeychain, passkeyStore } from './storage.js'
 
 // Dependencies are loaded from CDN in index.html:
 //   - `qrcode` (qrcode-generator UMD) is exposed as a global
@@ -95,6 +95,78 @@ async function apiFetch(url, options = {}) {
   return { ok: res.ok, status: res.status, data }
 }
 
+// ── WebAuthn "immediate" mode ──
+// One passkey ceremony that shows UI ONLY when a local credential exists and
+// rejects instantly (no UI) otherwise — the invisible-reconnect primitive.
+// SimpleWebAuthnBrowser.startAuthentication doesn't expose it, so this is a
+// thin hand-rolled navigator.credentials.get() with two safety rules:
+// - `uiMode: 'immediate'` (shipped, Chrome 149+) is a *dictionary member*: an
+//   unaware browser silently IGNORES it and would run a full modal ceremony —
+//   catastrophic for brand-new users. So it is only sent when
+//   getClientCapabilities() explicitly reports the capability.
+// - `mediation: 'immediate'` (origin-trial name) is an *enum value*: an
+//   unaware browser throws a synchronous TypeError with zero UI, so trying it
+//   as a fallback probe is always safe.
+function b64uToBuf(s) {
+  const pad = '='.repeat((4 - (s.length % 4)) % 4)
+  const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad)
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0)).buffer
+}
+
+function bufToB64u(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+// Controller for the in-flight immediate probe. A pending WebAuthn request
+// blocks any new one (NotAllowedError), so a button-initiated ceremony must
+// abort the probe first (see abortImmediateProbe callers).
+let _immediateCtl = null
+
+function abortImmediateProbe() {
+  try { _immediateCtl?.abort() } catch { /* already settled */ }
+  _immediateCtl = null
+}
+
+async function immediateModeGet(optionsJSON) {
+  const publicKey = {
+    challenge: b64uToBuf(optionsJSON.challenge),
+    rpId: optionsJSON.rpId,
+    allowCredentials: [],
+    userVerification: optionsJSON.userVerification || 'preferred',
+    timeout: optionsJSON.timeout,
+  }
+  _immediateCtl = new AbortController()
+  const signal = _immediateCtl.signal
+  let cred = null
+  let capable = false
+  try {
+    const caps = await window.PublicKeyCredential?.getClientCapabilities?.()
+    capable = !!caps?.immediateGet
+  } catch { /* fall through to the enum probe */ }
+  if (capable) {
+    cred = await navigator.credentials.get({ publicKey, uiMode: 'immediate', signal })
+  } else {
+    // Safe probe: TypeError (unknown enum value) on unsupporting browsers.
+    cred = await navigator.credentials.get({ publicKey, mediation: 'immediate', signal })
+  }
+  if (!cred) throw new DOMException('No credential', 'NotAllowedError')
+  const r = cred.response
+  return {
+    id: cred.id,
+    rawId: bufToB64u(cred.rawId),
+    type: cred.type,
+    authenticatorAttachment: cred.authenticatorAttachment ?? undefined,
+    clientExtensionResults: cred.getClientExtensionResults?.() ?? {},
+    response: {
+      clientDataJSON: bufToB64u(r.clientDataJSON),
+      authenticatorData: bufToB64u(r.authenticatorData),
+      signature: bufToB64u(r.signature),
+      userHandle: r.userHandle ? bufToB64u(r.userHandle) : undefined,
+    },
+  }
+}
+
 export function qrmeet() {
   return {
     // ── State ──
@@ -139,6 +211,15 @@ export function qrmeet() {
     // (no POST /users, no localStorage). { type, roomId, …params, priorSession }.
     pendingEntry: null,
     pendingRoomName: '', // display-only room name fetched for the consent screen
+    consentStep: 'ask',  // 'ask' | 'link' (passkey recognised but no profile in this room)
+
+    // Passkeys — the cross-context anchor that reunites Safari / installed PWA /
+    // any other storage container on the same device under one player.
+    passkeySupport: false,   // WebAuthn + platform authenticator available
+    passkeyBusy: false,      // a ceremony is in flight — debounces the buttons
+    passkeyProtected: false, // current room's profile is linked to a passkey
+    recovery: null,          // last auth-verify result { accounts, linkToken, credentialId, personId }
+    _passkeyDetect: null,    // promise resolved once passkeySupport is settled
 
     // PWA Install
     installPromptEvent: null,
@@ -169,6 +250,10 @@ export function qrmeet() {
       // Fire-and-forget: fetch build metadata for the landing/about footer.
       // Never blocks routing, and silently no-ops if the endpoint is unreachable.
       this.loadVersion()
+
+      // Kick off passkey feature detection; entry paths await this promise
+      // before deciding whether to attempt an invisible reconnect.
+      this._passkeyDetect = this.detectPasskeySupport()
 
       // Check for iOS Safari (not standalone). On iOS we deliberately do NOT
       // suggest "Add to Home Screen": a home-screen web app has a storage
@@ -267,7 +352,39 @@ export function qrmeet() {
         return
       }
 
+      // Installed PWA opening on '/' with a BLANK localStorage: the app is
+      // installed from the card page, so this player almost certainly joined
+      // before in the browser — the storage container split (Safari vs PWA) ate
+      // their identity. Auto-fire the passkey ceremony to reunite the contexts;
+      // a cancel simply lands on the normal landing page.
+      await this._passkeyDetect
+      const isStandalonePwa = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone
+      if (isStandalonePwa && this.passkeySupport) {
+        this.page = 'landing'
+        this.recovery = null
+        try {
+          const assertion = await this._passkeyCeremony()
+          if (assertion && await this._completeRecovery(assertion, null)) {
+            await this.enterRoom()
+            return
+          }
+        } catch { /* cancelled or no credential — fall through to landing */ }
+        return
+      }
+
       this.page = 'landing'
+    },
+
+    async detectPasskeySupport() {
+      try {
+        const swb = window.SimpleWebAuthnBrowser
+        // Guard the global: a blocked CDN degrades to "no passkey UI anywhere".
+        this.passkeySupport = !!(swb
+          && swb.browserSupportsWebAuthn()
+          && await swb.platformAuthenticatorIsAvailable())
+      } catch {
+        this.passkeySupport = false
+      }
     },
 
     async loadVersion() {
@@ -391,6 +508,9 @@ export function qrmeet() {
         this.save()
         // Persist random emoji to server
         await this.updateProfile({ emoji })
+        // Landing-form joins don't pass through confirmEntry(): run the silent
+        // passkey setup here, while the Join tap's activation is fresh.
+        await this.setupPasskey()
         await this.enterRoom()
       } catch (e) {
         this.showToast(e.message)
@@ -407,6 +527,7 @@ export function qrmeet() {
     },
 
     async enterRoom() {
+      this.passkeyProtected = !!passkeyStore.linkedTo(this.roomId)
       await this.loadScore()
       this.page = 'card' // the page watcher opens the live socket
       // Force a fresh token rather than trusting the cached one: the QR token is
@@ -416,7 +537,7 @@ export function qrmeet() {
       history.replaceState({}, '', `/r/${this.roomId}`)
     },
 
-    async ensureUser() {
+    async ensureUser(linkToken) {
       // If this component instance already has a user in memory, reuse it
       if (this.me && this.roomId) return
 
@@ -429,15 +550,23 @@ export function qrmeet() {
           this.me = saved.me
           return
         }
+        const body = { privateToken: genPrivateToken() }
+        // linkToken (from a passkey auth ceremony) makes the server link the
+        // new profile to the already-authenticated credential.
+        if (linkToken) body.linkToken = linkToken
         const { ok, data } = await apiFetch(`/api/rooms/${this.roomId}/users`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ privateToken: genPrivateToken() }),
+          body: JSON.stringify(body),
         })
         if (!ok) throw new Error(data.error || 'Could not join room')
         const emoji = randomEmoji()
         this.me = { publicId: data.publicId, privateToken: data.privateToken, displayName: data.displayName, emoji }
         this.save()
+        if (linkToken) {
+          passkeyStore.link(this.roomId, data.publicId)
+          this.passkeyProtected = true
+        }
         await this.updateProfile({ emoji })
       } finally {
         this._joiningRoom = false
@@ -463,12 +592,56 @@ export function qrmeet() {
         return
       }
 
+      // Invisible reconnect (immediate mode, Chrome 149+): with no local
+      // session at all, probe for a local passkey BEFORE showing the consent
+      // gate. UI appears only if a credential exists (one biometric tap);
+      // otherwise the probe rejects instantly with zero UI and the normal gate
+      // shows. A recovered profile means consent was already given at the
+      // original join, so the gate is skipped — same logic as the saved-session
+      // fast path above.
+      //
+      // The probe races a short timer: if the picker is up (or the request
+      // hangs), the gate appears after 2.5s instead of leaving the user on the
+      // splash; a probe that resolves later still recovers, and a tap on the
+      // recover button aborts it first (a pending WebAuthn request would block
+      // the new ceremony).
+      await this._passkeyDetect
+      if (this.passkeySupport && !saved) {
+        this.recovery = null
+        const probe = this._passkeyCeremony({ immediate: true })
+          .then((assertion) => assertion ? this._completeRecovery(assertion, roomId) : false)
+          .catch(() => false) // unsupported, no credential, or cancelled
+        const recovered = await Promise.race([
+          probe,
+          new Promise((resolve) => setTimeout(() => resolve('pending'), 2500)),
+        ])
+        if (recovered === true) {
+          await this._runEntry(entry)
+          return
+        }
+        if (recovered === 'pending') {
+          // Show the gate below; honour a late success while it is still up.
+          probe.then(async (ok) => {
+            if (ok && this.page === 'consent' && this.pendingEntry?.roomId === roomId) {
+              const late = this.pendingEntry
+              this.pendingEntry = null
+              this.consentStep = 'ask'
+              await this._runEntry(late)
+            }
+          })
+        }
+        // recovered === false: authenticated but no profile in THIS room →
+        // fall through to the gate; this.recovery.linkToken makes
+        // confirmEntry() link the new profile to the same passkey.
+      }
+
       // New join, or a session for a *different* room (a switch). Park the action
       // behind the consent gate. priorSession lets a cancel restore the room the
       // user was already in. this.roomId is deliberately left untouched — the
       // template reads pendingEntry.roomId so no live socket is retargeted.
       this.pendingEntry = { ...entry, priorSession: saved?.roomId && saved.roomId !== roomId ? saved : null }
       this.pendingRoomName = ''
+      this.consentStep = 'ask'
       this.page = 'consent'
       this.loadRoomName(roomId)
     },
@@ -507,13 +680,36 @@ export function qrmeet() {
       else await this.claimTreasure(treasureId)
     },
 
-    // User agreed to enter — create the account (via _runEntry) and run the
-    // action. A switch from another room resets the old session first.
+    // User agreed to enter — create the account, run the passkey setup while
+    // the Join tap's user activation is fresh (Safari requirement), then run
+    // the action. A switch from another room resets the old session first.
     async confirmEntry() {
       const entry = this.pendingEntry
       if (!entry) return
       this.pendingEntry = null
+      this.consentStep = 'ask'
       if (entry.priorSession) this.performSwitchRoom()
+
+      // A recovery ceremony already ran for this entry (immediate mode or the
+      // "link" pane): the join must link the new profile to that credential.
+      if (this.recovery?.linkToken) entry.linkToken = this.recovery.linkToken
+      this.recovery = null
+
+      // Create the account NOW (previously implicit in _runEntry) so the
+      // passkey ceremony below binds to a real identity. On failure, let
+      // _runEntry retry and surface the error through its own UI paths
+      // (toast+landing for 'room', scan error screen for scan/treasure).
+      this.roomId = entry.roomId
+      try {
+        await this.ensureUser(entry.linkToken)
+      } catch {
+        await this._runEntry(entry)
+        return
+      }
+
+      // No applicative question: only the OS sheet (Face ID / Touch ID)
+      // appears; cancelling it is remembered and never re-prompted on join.
+      await this.setupPasskey()
       await this._runEntry(entry)
     },
 
@@ -523,6 +719,8 @@ export function qrmeet() {
       const entry = this.pendingEntry
       this.pendingEntry = null
       this.pendingRoomName = ''
+      this.consentStep = 'ask'
+      this.recovery = null
       if (entry?.priorSession) {
         this.me = entry.priorSession.me
         this.roomId = entry.priorSession.roomId
@@ -533,6 +731,171 @@ export function qrmeet() {
       history.replaceState({}, '', '/')
       this.savedSession = this.loadSaved()
       this.page = 'landing'
+    },
+
+    // ── Passkeys ──
+
+    // Fetch auth options and run one authentication ceremony. `immediate`
+    // uses the invisible-reconnect mode (see immediateModeGet); the default is
+    // a regular modal ceremony via SimpleWebAuthnBrowser.
+    async _passkeyCeremony({ immediate = false } = {}) {
+      const { ok, data: options } = await apiFetch('/api/passkey/auth-options', { method: 'POST' })
+      if (!ok) return null
+      if (immediate) return await immediateModeGet(options)
+      return await window.SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options })
+    },
+
+    // Send an assertion to auth-verify and adopt the account for targetRoomId
+    // (or the most recent account when targetRoomId is null — landing/PWA case).
+    // Returns true when an account was adopted. Always records the credential
+    // in passkeyStore and keeps the full result in this.recovery so callers can
+    // handle the authenticated-but-no-profile-here case (linkToken).
+    async _completeRecovery(assertion, targetRoomId) {
+      const { ok, data } = await apiFetch('/api/passkey/auth-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assertion),
+      })
+      if (!ok) return false
+      const rec = passkeyStore.get() || {}
+      rec.credentialId = data.credentialId
+      rec.personId = data.personId
+      rec.links = rec.links || {}
+      for (const a of data.accounts) rec.links[a.roomId] = a.publicId
+      passkeyStore.set(rec)
+      this.recovery = data
+      const account = targetRoomId
+        ? data.accounts.find((a) => a.roomId === targetRoomId)
+        : data.accounts[0]
+      if (!account) return false
+      this.adoptAccount(account)
+      return true
+    },
+
+    adoptAccount(account) {
+      // Reset any prior room's socket/session state BEFORE installing the
+      // recovered identity — the me/page watchers then reconnect cleanly.
+      this.performSwitchRoom()
+      this.me = {
+        publicId: account.publicId,
+        privateToken: account.privateToken,
+        displayName: account.displayName,
+        emoji: account.emoji || '😊',
+      }
+      this.roomId = account.roomId
+      this.save()
+      this.passkeyProtected = true
+    },
+
+    // Button-initiated recovery: "I already have a profile" on the consent
+    // gate (targetRoomId set) or "Recover my profile" on the landing (null).
+    async recoverProfile(targetRoomId) {
+      if (this.passkeyBusy) return
+      this.passkeyBusy = true
+      this.recovery = null
+      abortImmediateProbe() // a pending silent probe would block this ceremony
+      try {
+        const assertion = await this._passkeyCeremony()
+        if (!assertion) { this.showToast('Recovery is unavailable right now'); return }
+        const recovered = await this._completeRecovery(assertion, targetRoomId)
+        if (recovered) {
+          const entry = this.pendingEntry
+          this.pendingEntry = null
+          this.consentStep = 'ask'
+          if (entry) await this._runEntry(entry)
+          else await this.enterRoom()
+          return
+        }
+        if (this.recovery) {
+          // Authenticated, but this passkey has no profile for the target.
+          if (targetRoomId && this.pendingEntry) this.consentStep = 'link'
+          else this.showToast('No profile found for this passkey')
+        } else {
+          // e.g. credential pruned server-side after a year unused.
+          this.showToast('This passkey isn\'t recognised — join as a new player')
+        }
+      } catch (e) {
+        if (e?.name !== 'NotAllowedError') this.showToast('Could not recover your profile')
+      } finally {
+        this.passkeyBusy = false
+      }
+    },
+
+    // Silent post-join passkey setup. Never blocks, never nags: an OS-sheet
+    // cancel is remembered (passkeyStore.declined) and only the About page
+    // opt-in clears it. With an existing device credential, never create a
+    // second one (same userHandle would REPLACE the platform-keychain entry
+    // and break recovery for older rooms) — authenticate it and link instead.
+    async setupPasskey() {
+      if (!this.passkeySupport || !this.me || !this.roomId) return
+      const rec = passkeyStore.get()
+      if (rec?.declined) return
+      if (rec?.links?.[this.roomId]) { this.passkeyProtected = true; return }
+      if (this.passkeyBusy) return
+      this.passkeyBusy = true
+      abortImmediateProbe() // a pending silent probe would block this ceremony
+      try {
+        if (rec?.credentialId) {
+          // Existing passkey on this device → one get() ceremony, then link the
+          // current profile through the idempotent join path.
+          const assertion = await this._passkeyCeremony()
+          if (!assertion) return
+          const { ok, data } = await apiFetch('/api/passkey/auth-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(assertion),
+          })
+          if (!ok) return
+          const { ok: linked } = await apiFetch(`/api/rooms/${this.roomId}/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ privateToken: this.me.privateToken, linkToken: data.linkToken }),
+          })
+          if (!linked) return
+          passkeyStore.link(this.roomId, this.me.publicId)
+          this.passkeyProtected = true
+        } else {
+          // First passkey: create() — the OS sheet is the only UI.
+          const { ok, data: options } = await apiFetch(
+            `/api/rooms/${this.roomId}/users/${this.me.publicId}/passkey/register-options`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-private-token': this.me.privateToken },
+              body: JSON.stringify(rec?.personId ? { personId: rec.personId } : {}),
+            },
+          )
+          if (!ok) return
+          const attestation = await window.SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options })
+          const { ok: verified, data } = await apiFetch(
+            `/api/rooms/${this.roomId}/users/${this.me.publicId}/passkey/register-verify`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-private-token': this.me.privateToken },
+              body: JSON.stringify(attestation),
+            },
+          )
+          if (!verified) return
+          const newRec = passkeyStore.get() || {}
+          newRec.credentialId = data.credentialId
+          newRec.personId = data.personId
+          newRec.links = newRec.links || {}
+          newRec.links[this.roomId] = this.me.publicId
+          passkeyStore.set(newRec)
+          this.passkeyProtected = true
+        }
+      } catch (e) {
+        // User dismissed the OS sheet → remember, never nag again on join.
+        if (e?.name === 'NotAllowedError') passkeyStore.setDeclined()
+      } finally {
+        this.passkeyBusy = false
+      }
+    },
+
+    // About-page opt-in for players who skipped or declined the OS sheet.
+    async protectProfile() {
+      passkeyStore.setDeclined(false)
+      await this.setupPasskey()
+      if (this.passkeyProtected) this.showToast('Profile protected ✅')
     },
 
     // ── Profile ──

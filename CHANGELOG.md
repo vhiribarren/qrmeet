@@ -21,6 +21,9 @@ both handled by `npm run release` (see `docs/guidelines.md`).
 
 - App version and build revision on the landing and About pages.
 - Consent screen before joining a game, with a dedicated Privacy Policy page.
+- Passkey profile recovery: joining offers a passkey (Face ID / Touch ID) so a
+  profile survives browser or PWA context loss on the same device; recovery is
+  automatic where supported, or one tap from the entry and landing screens.
 
 ### Changed
 

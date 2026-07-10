@@ -274,6 +274,9 @@ admin.delete('/rooms/:roomId/users/:uid', async (c) => {
     'DELETE FROM treasure_scans WHERE room_id = ? AND user_id = ?'
   ).bind(roomId, uid).run()
   await c.env.DB.prepare(
+    'DELETE FROM passkey_links WHERE room_id = ? AND user_public_id = ?'
+  ).bind(roomId, uid).run()
+  await c.env.DB.prepare(
     'DELETE FROM users WHERE public_id = ? AND room_id = ?'
   ).bind(uid, roomId).run()
   // Mirror the D1 delete in the DurableRoom: drop any active encounter involving

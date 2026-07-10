@@ -49,6 +49,9 @@ ENCOUNTER_DURATION_SECONDS = "180"
 MAX_PARTICIPANTS = "200"
 ROOM_TTL_DAYS = "7"
 TREASURE_DEFAULT_POINTS = "2"
+# Encrypted build variable (Cloudflare Workers Builds settings), injected by
+# scripts/gen-wrangler.mjs. HMAC key for stateless WebAuthn challenges.
+WEBAUTHN_SECRET = "${WEBAUTHN_SECRET}"
 
 [observability]
 enabled = true

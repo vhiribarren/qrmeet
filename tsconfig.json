@@ -6,7 +6,10 @@
     "strict": true,
     "lib": ["ESNext"],
     "types": ["@cloudflare/workers-types"],
-    "noEmit": true
+    "noEmit": true,
+    // @simplewebauthn/server's transitive dep (@peculiar/x509) ships .d.ts
+    // written against DOM WebCrypto typings absent from workers-types.
+    "skipLibCheck": true
   },
   "include": ["worker/**/*.ts"]
 }

@@ -104,6 +104,29 @@ A `UNIQUE(treasure_id, user_id)` constraint enforces **one claim per player per 
 
 **Treasure mode settings** live in the `rooms.settings` JSON blob (see `worker/lib/settings.ts`): `treasureHuntEnabled` (default `true`) and `treasureDefaultPoints` (a plain per-room number, seeded at room creation from the `TREASURE_DEFAULT_POINTS` env var, default `2`, then editable). No schema migration is needed to add settings.
 
+### `passkeys`
+| Column | Type | Description |
+|---|---|---|
+| `credential_id` | TEXT PK | base64url credential id, as sent by the authenticator |
+| `public_key` | TEXT | base64url COSE public key bytes |
+| `counter` | INTEGER | WebAuthn signature counter (clone detection; synced passkeys report 0) |
+| `transports` | TEXT | JSON array or NULL |
+| `person_id` | TEXT | Opaque WebAuthn userHandle — no FK, no personal data |
+| `created_at` | INTEGER | Unix timestamp |
+| `last_used_at` | INTEGER | Bumped on every auth/link; drives the ~365-day cron prune |
+
+Deliberately **not room-scoped**: the same passkey is reused across events (see the design decision below).
+
+### `passkey_links`
+| Column | Type | Description |
+|---|---|---|
+| `credential_id` | TEXT FK | The passkey |
+| `room_id` | TEXT | Parent room |
+| `user_public_id` | TEXT | The profile this passkey holds in that room |
+| `created_at` | INTEGER | Unix timestamp |
+
+`PRIMARY KEY (credential_id, room_id)` — one profile per credential per room. Deleted explicitly in `purgeRoom()` and the admin user-delete route (project style: no CASCADE).
+
 ---
 
 ## DurableRoom SQLite schema
@@ -199,6 +222,20 @@ adminKeychain.remove(roomId)            // forget on this device (room not delet
 It is stored as a single JSON map under `qrmeet.adminKeychain` = `{ "<roomId>": { name, token } }`, where `token` is the hashed admin credential (the same value sent as `x-admin-token`). The keychain is the source of truth for the `/admin` console.
 
 Because the credential *is* the hashed password, no cross-device sync is needed: the organiser re-adds a room on any device via `/admin` → "Add an existing room" (code + password) — there is no global account.
+
+### Passkey record
+
+Like the admin keychain, the passkey record is cross-room durable data, **not** a session key: it points at a credential living in the *platform* keychain (iCloud/Google), so it must survive `performSwitchRoom()` / "Reset game" — a session key would be wiped on every room switch and push the user into registering duplicate keychain entries.
+
+```javascript
+import { passkeyStore } from './storage.js'
+passkeyStore.get()                 // { credentialId, personId, declined, links } | null
+passkeyStore.link(roomId, publicId)
+passkeyStore.linkedTo(roomId)      // publicId | null
+passkeyStore.setDeclined(value)    // remember an OS-sheet dismissal
+```
+
+Stored as one JSON object under `qrmeet.passkey` = `{ credentialId, personId, declined, links: { "<roomId>": "<publicId>" } }`. `personId` is reused as the WebAuthn userHandle on re-registration so the platform keychain replaces its entry instead of accumulating; it is display/UX metadata only — the server never trusts it for auth.
 
 ### API error format
 
@@ -339,9 +376,18 @@ The `encounters` table references `users(public_id)` without `CASCADE`. Deleting
 
 Treasure QR codes are static (printed once) and encode `/r/:roomId/treasure/:treasureId`. The `id` is a 12-character random slug (~36¹² ≈ 4.7×10¹⁸ combinations), so it is itself an unguessable capability — there is **no** separate secret column or rotating KV token like the per-user QR flow. The QR is public by design (whoever physically finds it may scan), so the only conceivable attack is guessing an id without finding the code, which the id's entropy makes infeasible. Re-printing simply re-renders the same stable URL.
 
+### Passkey-based profile recovery
+
+The player identity is a bearer token in `localStorage` — but a device holds several isolated storage containers (Safari vs installed PWA vs in-app webviews), and losing the container meant losing the profile and creating a duplicate. A **passkey (WebAuthn)** is the only cross-context credential store a website can reach on a device, so it is the anchor that reunites those contexts under one player. Design points:
+
+- **No app-level dialog.** After the consent-gate "Join", the registration ceremony runs directly — only the OS sheet (Face ID / Touch ID) appears. A cancel is remembered (`qrmeet.passkey.declined`) and never re-prompted on join; the About page keeps an opt-in. When WebAuthn is unavailable (webviews), no passkey UI exists anywhere and the default behaviour stands. There is deliberately **no URL-based recovery fallback**.
+- **Invisibility ladder for reconnection.** (1) Browsers with WebAuthn *immediate* mode (Chrome 149+, `uiMode: 'immediate'`) auto-reconnect on any deep link with no local session: UI only if a local credential exists, instant silent rejection otherwise — and a recovered profile skips the consent gate (consent was given at the original join). The `uiMode` dictionary member is only sent when `getClientCapabilities().immediateGet` confirms it (an unaware browser would silently ignore it and run a full modal ceremony); `mediation: 'immediate'` is a safe fallback probe since an unknown *enum value* throws synchronously. (2) An installed PWA opening on `/` with blank storage auto-fires a regular ceremony (the PWA is installed from the card page, so a profile almost certainly exists). (3) Elsewhere, explicit buttons: "I already have a profile" on the consent gate, "Recover my profile" on the landing.
+- **One passkey forever, per-room profiles.** `passkeys` rows are not room-scoped and survive room deletion — only `passkey_links` dies with the room. In a new room, `auth-verify` returns a one-time `linkToken` that `POST /users` uses to link the fresh profile to the same credential: no second ceremony, no duplicate platform-keychain entry (re-registering with the same userHandle would *replace* the entry and break recovery for older rooms). Stale credentials are pruned by the hourly cron after ~365 days unused. What is stored is a public key and opaque random ids — no personal data, biometrics never leave the device.
+- **Stateless ceremonies.** Challenges and link tokens are HMAC-signed self-contained values (`WEBAUTHN_SECRET`), verified via simplewebauthn's `expectedChallenge` callback — consistent with the "zero session state" decision above. The RP ID derives from the request Origin (`WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` override it in dev, where `wrangler dev` rewrites URL/Host/Origin to the `[[routes]]` domain).
+
 ### Scheduled cleanup of expired rooms
 
-Rooms carry an `expires_at` (`created_at` + `ROOM_TTL_DAYS`, default 7 days). An hourly **Cron Trigger** (`[triggers].crons` in `wrangler.toml`, handled by `scheduled()` in `worker/index.ts`) deletes every expired room and all of its data: treasure_scans → treasures → encounters → users → rooms in D1 (in that order, since these tables have no `ON DELETE CASCADE` to the room), then a `cleanup()` RPC call to the room's Durable Object, which clears its `active_encounters` table and cancels any pending alarm.
+Rooms carry an `expires_at` (`created_at` + `ROOM_TTL_DAYS`, default 7 days). An hourly **Cron Trigger** (`[triggers].crons` in `wrangler.toml`, handled by `scheduled()` in `worker/index.ts`) deletes every expired room and all of its data: treasure_scans → treasures → encounters → passkey_links → users → rooms in D1 (in that order, since these tables have no `ON DELETE CASCADE` to the room), then a `cleanup()` RPC call to the room's Durable Object, which clears its `active_encounters` table and cancels any pending alarm. The same cron prunes `passkeys` rows unused for over a year (credentials deliberately survive their rooms — see the passkey design decision).
 
 This is the single mechanism that bounds data retention. Consequences:
 - Personal data lives at most `ROOM_TTL_DAYS` (default 7 days) + up to 1h (next cron tick) — matching the Privacy notice. The board and admin pages display a live countdown to the deletion time (`expiresAt`).

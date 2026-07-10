@@ -31,6 +31,7 @@ import treasures from './routes/treasures'
 import admin from './routes/admin'
 import board from './routes/board'
 import frontend from './routes/frontend'
+import { passkeyReg, passkeyAuth } from './routes/passkeys'
 
 export { DurableRoom } from './durable/DurableRoom'
 import { purgeRoom } from './lib/rooms'
@@ -72,6 +73,8 @@ app.onError((err, c) => {
 
 app.route('/api/rooms', rooms)
 app.route('/api/rooms/:roomId/users', users)
+app.route('/api/rooms/:roomId/users/:uid/passkey', passkeyReg)
+app.route('/api/passkey', passkeyAuth)
 app.route('/api/rooms/:roomId/scan', scan)
 app.route('/api/rooms/:roomId/treasures', treasures)
 app.route('/api/rooms/:roomId/board', board)
@@ -113,13 +116,24 @@ const scheduled: ExportedHandlerScheduledHandler<Env> = async (_event, env, _ctx
   const count = expired.results.length
   if (count === 0) {
     console.info('cron.cleanup', { expired: 0 })
-    return
+  } else {
+    for (const { id } of expired.results) {
+      await purgeRoom(env.DB, env.DURABLE_ROOM, id)
+    }
+    console.info('cron.cleanup', { expired: count, rooms: expired.results.map(r => r.id) })
   }
 
-  for (const { id } of expired.results) {
-    await purgeRoom(env.DB, env.DURABLE_ROOM, id)
-  }
-  console.info('cron.cleanup', { expired: count, rooms: expired.results.map(r => r.id) })
+  // Prune passkey credentials unused for ~a year. Credentials deliberately
+  // survive room deletion (same passkey across events); this is the only thing
+  // that ever deletes them. Known limit: last_used_at only moves on recovery/
+  // link, so a passkey that never needed recovering is pruned after a year —
+  // the next recovery attempt then reports an unknown passkey and the client
+  // falls back to a fresh registration.
+  const cutoff = now - 365 * 86400
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM passkey_links WHERE credential_id IN (SELECT credential_id FROM passkeys WHERE last_used_at < ?)').bind(cutoff),
+    env.DB.prepare('DELETE FROM passkeys WHERE last_used_at < ?').bind(cutoff),
+  ])
 }
 
 export default { fetch: app.fetch, scheduled }

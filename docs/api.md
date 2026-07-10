@@ -7,6 +7,7 @@ All routes are mounted under `/api/`. Errors always return JSON `{ "error": "...
 - [Frontend routes](#frontend-routes) — HTML pages served by the worker
 - [Rooms](#rooms) — `POST /api/rooms`, `GET /api/rooms/:roomId`
 - [Users](#users) — join, profile, QR token, score
+- [Passkeys](#passkeys) — profile recovery across browser contexts
 - [Scan](#scan) — core game action
 - [Treasure](#treasure) — treasure hunt claim
 - [Board](#board-public) — public leaderboard & graph
@@ -82,9 +83,11 @@ Join a room. Creates a new anonymous user and returns their credentials.
 
 **Body**
 ```json
-{ "privateToken": "<client-generated token, 32–128 [A-Za-z0-9] chars>" }
+{ "privateToken": "<client-generated token, 32–128 [A-Za-z0-9] chars>", "linkToken": "<optional, from POST /api/passkey/auth-verify>" }
 ```
 The client mints its own high-entropy private token (and persists it in `localStorage`). It is the user's bearer secret **and** the join idempotency key: because it exists before the first request, two near-simultaneous joins from the same device (a link prefetch plus the real navigation) send the same token and collapse to a single account, while distinct people — even behind the same IP (event Wi-Fi, NAT, CGNAT) — get distinct accounts. A request with a missing or malformed token is rejected `400`. Posting an already-registered token is idempotent: it returns the existing account and bypasses the participant cap. Known bot/crawler User-Agents are rejected `403`.
+
+`linkToken` (optional) links the joined profile to an already-authenticated passkey credential (see [Passkeys](#passkeys)) — this is how the same passkey gets a fresh profile in a new room with no extra ceremony. It is validated **before** any insert; an invalid or expired token is rejected `400` and no user is created (silently creating an unlinked profile would recreate the lost-profile bug the passkey exists to prevent). The link is written on both the create and the idempotent re-join paths.
 
 **Response `201`**
 ```json
@@ -151,6 +154,66 @@ Fetch the user's score and encounter history.
   ]
 }
 ```
+
+---
+
+## Passkeys
+
+Passkey-based profile recovery: the WebAuthn credential is the only cross-context anchor a website can reach on a device (Safari, an installed PWA and in-app webviews all have isolated `localStorage`), so it is what reunites those contexts under one player. See the design decision in [`architecture.md`](architecture.md#passkey-based-profile-recovery). Challenges and link tokens are stateless HMAC-signed values (`WEBAUTHN_SECRET`) — the server stores no ceremony state.
+
+### `POST /api/rooms/:roomId/users/:uid/passkey/register-options`
+Start a passkey registration for the authenticated player. Returns standard WebAuthn creation options (discoverable credential required, platform authenticator).
+
+**Header** `x-private-token: <privateToken>`
+
+**Body** (optional)
+```json
+{ "personId": "<32-char opaque id from a previous registration>" }
+```
+Re-sending a previously minted `personId` makes the platform keychain **replace** its entry instead of accumulating one per registration. Opaque and never trusted for auth.
+
+**Response `200`** — WebAuthn `PublicKeyCredentialCreationOptionsJSON`, with the signed challenge embedding the minted `personId` and the account id (that's how the verify step recovers them without server state).
+
+---
+
+### `POST /api/rooms/:roomId/users/:uid/passkey/register-verify`
+Verify the attestation and store the credential (public key + opaque ids only) linked to this room's profile.
+
+**Header** `x-private-token: <privateToken>`
+
+**Body** — the WebAuthn `RegistrationResponseJSON` from the browser.
+
+**Response `200`**
+```json
+{ "ok": true, "credentialId": "...", "personId": "..." }
+```
+
+---
+
+### `POST /api/passkey/auth-options`
+Public, domain-level (a passkey identifies a *person*, not a room member). Returns WebAuthn authentication options with empty `allowCredentials` (discoverable credentials only).
+
+**Response `200`** — WebAuthn `PublicKeyCredentialRequestOptionsJSON`.
+
+---
+
+### `POST /api/passkey/auth-verify`
+Public. Verifies the assertion against the stored credential and returns every profile this passkey holds in still-alive rooms, most recent first.
+
+**Body** — the WebAuthn `AuthenticationResponseJSON` from the browser.
+
+**Response `200`**
+```json
+{
+  "accounts": [
+    { "roomId": "abc123", "roomName": "Team Building 2026", "publicId": "...", "privateToken": "...", "displayName": "Alice", "emoji": "🦁" }
+  ],
+  "linkToken": "<one-time short-TTL token>",
+  "credentialId": "...",
+  "personId": "..."
+}
+```
+`linkToken` lets `POST /users` link a **new** profile to this just-authenticated credential (new-room case) without a second ceremony. An unknown credential returns `404` (e.g. pruned after ~a year unused); a failed verification returns `400`.
 
 ---
 

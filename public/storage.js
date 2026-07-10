@@ -59,3 +59,28 @@ export const adminKeychain = {
   },
   list:   ()                => Object.entries(adminKeychain.all()).map(([id, v]) => ({ id, ...v })),
 }
+
+// ── Passkey record ──
+// Cross-room durable data, like the admin keychain: it points at a credential
+// living in the *platform* keychain (iCloud/Google), so it must survive
+// performSwitchRoom() / "Reset game" — a session key would be wiped on every
+// room switch and push the user into registering duplicate keychain entries.
+// Shape: { credentialId, personId, declined, links: { "<roomId>": "<publicId>" } }
+const PASSKEY_KEY = PREFIX + 'passkey'
+
+export const passkeyStore = {
+  get: ()    => { try { return JSON.parse(localStorage.getItem(PASSKEY_KEY) || 'null') } catch { return null } },
+  set: (rec) => localStorage.setItem(PASSKEY_KEY, JSON.stringify(rec)),
+  link: (roomId, publicId) => {
+    const rec = passkeyStore.get() || {}
+    rec.links = rec.links || {}
+    rec.links[roomId] = publicId
+    passkeyStore.set(rec)
+  },
+  linkedTo: (roomId) => passkeyStore.get()?.links?.[roomId] || null,
+  setDeclined: (value = true) => {
+    const rec = passkeyStore.get() || {}
+    rec.declined = value
+    passkeyStore.set(rec)
+  },
+}

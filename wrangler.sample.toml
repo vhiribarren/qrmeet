@@ -40,6 +40,14 @@ ROOM_TTL_DAYS = "7"
 # (editable afterwards per room in the admin Settings tab). Changing this only
 # affects rooms created after the change. Default: 2.
 TREASURE_DEFAULT_POINTS = "2"
+# HMAC key for stateless WebAuthn challenges and link tokens (passkey recovery).
+# Use a long random value in production.
+WEBAUTHN_SECRET = "dev-only-webauthn-secret-change-me"
+# Dev-only: pin the passkey RP ID to the local dev origin (with a [[routes]]
+# custom_domain, wrangler dev rewrites URL/Host/Origin to the route's domain).
+# Leave unset in production — the RP ID is then derived from the request.
+WEBAUTHN_RP_ID = "localhost"
+WEBAUTHN_ORIGIN = "http://localhost:8787"
 
 [observability]
 enabled = true

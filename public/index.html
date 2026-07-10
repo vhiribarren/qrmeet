@@ -40,6 +40,7 @@ SOFTWARE.
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js" integrity="sha384-e9EFD6BGC90bkW9aDV5xbbBfzwN7G8YImHao2lfLVKV/hPB0E0go+H3I64h7oHtA" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@13.3.0/dist/bundle/index.umd.min.js" integrity="sha384-DnjEgzmDuatj/e2GTxbXmPijf7QyPvp8oAnvlWOqOqfMGekoIyImmgeJ+CxrALC7" crossorigin="anonymous"></script>
   <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.29.1/index.js" integrity="sha384-K6agUzbeMc1GXMXkIluupxooxm0lI/miwK1KgDxZqBS19dXN9xTv3eEg8qOjpQ2q" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -102,6 +103,7 @@ SOFTWARE.
           <button class="btn btn--primary btn--large" @click="joinMode = true">Join a room</button>
           <p class="landing__sep">or</p>
           <button class="btn btn--secondary" @click="showCreateRoom = true">Create a room</button>
+          <button class="btn btn--ghost" x-show="passkeySupport" @click="recoverProfile(null)" :disabled="passkeyBusy" data-test="landing-recover">🔑 Recover my profile</button>
         </div>
         <div x-show="joinMode" class="landing__join-form">
           <label>Room code</label>
@@ -349,6 +351,12 @@ SOFTWARE.
 
 
 
+        <section class="about__section" x-show="passkeySupport && me && !passkeyProtected">
+          <h2 class="about__section-title">Protect my profile</h2>
+          <p class="about__section-body">Link your profile to a passkey (Face&nbsp;ID / Touch&nbsp;ID) so you can recover it from any browser on this device — even if this one forgets you.</p>
+          <button class="btn btn--secondary" @click="protectProfile()" :disabled="passkeyBusy" data-test="about-protect">🔑 Protect my profile</button>
+        </section>
+
         <section class="about__section">
           <h2 class="about__section-title">Reset</h2>
           <p class="about__section-body">Leave your current room. Your score and profile will be lost.</p>
@@ -365,6 +373,7 @@ SOFTWARE.
             <div class="about__lib"><span class="about__lib-name">hono</span><span class="about__lib-badge">MIT</span></div>
             <div class="about__lib"><span class="about__lib-name">jsQR</span><span class="about__lib-badge">Apache-2.0</span></div>
             <div class="about__lib"><span class="about__lib-name">nanoid</span><span class="about__lib-badge">MIT</span></div>
+            <div class="about__lib"><span class="about__lib-name">@simplewebauthn</span><span class="about__lib-badge">MIT</span></div>
             <div class="about__lib"><span class="about__lib-name">qrcode-generator</span><span class="about__lib-badge">MIT</span></div>
             <div class="about__lib"><span class="about__lib-name">unique-names-generator</span><span class="about__lib-badge">MIT</span></div>
           </div>
@@ -376,7 +385,7 @@ SOFTWARE.
     <!-- Shown before any deep-link auto-join (scan / treasure / room). Nothing is
          created server-side or in localStorage until the user taps "Join". -->
     <div class="page" x-show="page === 'consent'" x-transition:enter="page-enter" data-test="page-consent">
-      <div class="consent">
+      <div class="consent" x-show="consentStep === 'ask'">
         <img class="consent__logo" src="/icon.svg" alt="QRMeet logo">
         <h2 class="consent__title">Join this game?</h2>
         <p class="consent__room">Room <strong x-text="pendingRoomName || pendingEntry?.roomId"></strong></p>
@@ -384,13 +393,33 @@ SOFTWARE.
           To play, QRMeet creates an anonymous profile for you in this room and stores minimal
           data (a random name, an emoji, and who you meet). Nothing is stored until you tap Join.
         </p>
+        <p class="consent__body" x-show="passkeySupport">
+          Your profile is protected with a passkey (Face&nbsp;ID / Touch&nbsp;ID) when your device supports it,
+          so you can recover it from any browser on this device.
+        </p>
         <p class="consent__warning" x-show="pendingEntry?.priorSession" data-test="consent-switch-warning">
           ⚠️ You are currently in room <strong x-text="pendingEntry?.priorSession?.roomId"></strong>. Joining will leave it and reset your current score.
         </p>
         <a class="consent__link" href="/privacy">Read our Privacy Policy</a>
         <div class="consent__actions">
-          <button class="btn btn--primary btn--large" @click="confirmEntry()" data-test="consent-join">Join &amp; continue</button>
+          <button class="btn btn--primary btn--large" @click="confirmEntry()" :disabled="passkeyBusy" data-test="consent-join">Join &amp; continue</button>
+          <button class="btn btn--secondary" x-show="passkeySupport" @click="recoverProfile(pendingEntry?.roomId)" :disabled="passkeyBusy" data-test="consent-recover">I already have a profile</button>
           <button class="btn btn--ghost" @click="cancelEntry()" data-test="consent-cancel">Not now</button>
+        </div>
+      </div>
+      <!-- Passkey recognised, but it has no profile in this room (e.g. a new
+           event): offer a fresh profile linked to the same passkey. -->
+      <div class="consent" x-show="consentStep === 'link'" data-test="consent-link">
+        <img class="consent__logo" src="/icon.svg" alt="QRMeet logo">
+        <h2 class="consent__title">No profile in this room yet</h2>
+        <p class="consent__room">Room <strong x-text="pendingRoomName || pendingEntry?.roomId"></strong></p>
+        <p class="consent__body">
+          Your passkey was recognised, but it has no profile in this room.
+          Join as a new player? Your new profile will be protected by the same passkey.
+        </p>
+        <div class="consent__actions">
+          <button class="btn btn--primary btn--large" @click="confirmEntry()" :disabled="passkeyBusy" data-test="passkey-link-join">Join &amp; continue</button>
+          <button class="btn btn--ghost" @click="consentStep = 'ask'">Back</button>
         </div>
       </div>
     </div>

@@ -29,6 +29,7 @@ import { newPublicId, newToken } from '../lib/ids'
 import { extractPrivateToken, hmacIp } from '../lib/auth'
 import { uniqueNamesGenerator, adjectives, animals } from 'unique-names-generator'
 import { parseSettings, resolveSettings } from '../lib/settings'
+import { verifyPayload } from '../lib/webauthn'
 
 function randomName(): string {
   return uniqueNamesGenerator({ dictionaries: [adjectives, animals], style: 'capital', separator: ' ' })
@@ -36,7 +37,7 @@ function randomName(): string {
 
 const users = new Hono<{ Bindings: Env }>()
 
-async function getAuthedUser(c: any): Promise<User | null> {
+export async function getAuthedUser(c: any): Promise<User | null> {
   const privateToken = await extractPrivateToken(c.req.raw)
   if (!privateToken) return null
   const uid = c.req.param('uid') as string
@@ -99,10 +100,35 @@ users.post('/', async (c) => {
   // the same token and collapse to a single account — without ever grouping
   // distinct people who merely share an IP. Reject anything too short/malformed
   // to keep the bearer token unguessable.
-  const body = await c.req.json<{ privateToken?: string }>().catch(() => ({} as { privateToken?: string }))
+  const body = await c.req.json<{ privateToken?: string; linkToken?: string }>().catch(() => ({} as { privateToken?: string; linkToken?: string }))
   const privateToken = body.privateToken
   if (!privateToken || !/^[A-Za-z0-9]{32,128}$/.test(privateToken)) {
     return c.json({ error: 'A valid privateToken is required' }, 400)
+  }
+
+  // Optional passkey link: a linkToken (minted by /api/passkey/auth-verify)
+  // proves a fresh WebAuthn assertion for a credential and asks that the joined
+  // profile be linked to it. Validated BEFORE any insert and rejected loudly —
+  // silently creating an unlinked profile would recreate the lost-profile bug
+  // the passkey exists to prevent.
+  let linkCredentialId: string | null = null
+  if (body.linkToken) {
+    const payload = await verifyPayload(c.env.WEBAUTHN_SECRET, body.linkToken, 'link')
+    if (!payload?.cid) return c.json({ error: 'Invalid or expired passkey link' }, 400)
+    linkCredentialId = payload.cid
+  }
+
+  const linkCredential = async (publicId: string) => {
+    if (!linkCredentialId) return
+    const now = Math.floor(Date.now() / 1000)
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        'INSERT OR REPLACE INTO passkey_links (credential_id, room_id, user_public_id, created_at) VALUES (?, ?, ?, ?)'
+      ).bind(linkCredentialId, roomId, publicId, now),
+      c.env.DB.prepare(
+        'UPDATE passkeys SET last_used_at = ? WHERE credential_id = ?'
+      ).bind(now, linkCredentialId),
+    ])
   }
 
   // Idempotent fast path: this device already joined — return the same account
@@ -111,6 +137,7 @@ users.post('/', async (c) => {
     'SELECT public_id, display_name FROM users WHERE private_token = ? AND room_id = ?'
   ).bind(privateToken, roomId).first<{ public_id: string; display_name: string }>()
   if (existing) {
+    await linkCredential(existing.public_id)
     return c.json({ publicId: existing.public_id, privateToken, displayName: existing.display_name }, 201)
   }
 
@@ -138,6 +165,8 @@ users.post('/', async (c) => {
     'SELECT public_id, display_name FROM users WHERE private_token = ? AND room_id = ?'
   ).bind(privateToken, roomId).first<{ public_id: string; display_name: string }>()
   if (!created) return c.json({ error: 'Could not join room' }, 500)
+
+  await linkCredential(created.public_id)
 
   const doId = c.env.DURABLE_ROOM.idFromName(roomId)
   const stub = c.env.DURABLE_ROOM.get(doId) as unknown as DurableObjectStub<DurableRoom>

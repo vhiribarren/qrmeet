@@ -336,6 +336,195 @@ describe('entry consent gate', () => {
   })
 })
 
+describe('passkeys', () => {
+  // Fetch stub routed by URL suffix, so each endpoint answers independently.
+  function routedFetch(routes: Record<string, () => Response>) {
+    return vi.fn(async (url: string) => {
+      for (const [suffix, respond] of Object.entries(routes)) {
+        if (String(url).includes(suffix)) return respond()
+      }
+      return jsonResponse({ error: `no route for ${url}` }, 404)
+    })
+  }
+
+  function passkeyApp(overrides: Record<string, unknown> = {}): any {
+    localStorage.clear()
+    const app = makeApp(overrides)
+    app.doScan = vi.fn(async () => {})
+    app.claimTreasure = vi.fn(async () => {})
+    app.joinRoom = vi.fn(async () => {})
+    app.enterRoom = vi.fn(async () => {})
+    app.performSwitchRoom = vi.fn()
+    app.loadRoomName = vi.fn(async () => {})
+    app.updateProfile = vi.fn(async () => {})
+    app.passkeySupport = true
+    return app
+  }
+
+  afterEach(() => localStorage.clear())
+
+  it('confirmEntry runs the silent passkey setup when supported', async () => {
+    const app = passkeyApp({ roomId: null, me: null })
+    app.loadSaved = vi.fn(() => null)
+    app.ensureUser = vi.fn(async () => {})
+    app.setupPasskey = vi.fn(async () => {})
+    await app.requestEntry({ type: 'scan', roomId: 'room9', scanneePublicId: 'p9', qrToken: 'tok' })
+    await app.confirmEntry()
+    expect(app.ensureUser).toHaveBeenCalled()
+    expect(app.setupPasskey).toHaveBeenCalled()
+    expect(app.doScan).toHaveBeenCalledWith('p9', 'tok')
+  })
+
+  it('confirmEntry bypasses the ceremony when WebAuthn is unsupported', async () => {
+    const app = passkeyApp({ roomId: null, me: null, passkeySupport: false })
+    app.loadSaved = vi.fn(() => null)
+    app.ensureUser = vi.fn(async () => {})
+    const ceremony = vi.fn()
+    vi.stubGlobal('SimpleWebAuthnBrowser', { startRegistration: ceremony, startAuthentication: ceremony })
+    await app.requestEntry({ type: 'treasure', roomId: 'room9', treasureId: 't1' })
+    await app.confirmEntry()
+    expect(ceremony).not.toHaveBeenCalled()
+    expect(app.claimTreasure).toHaveBeenCalled()
+  })
+
+  it('confirmEntry forwards the recovery linkToken to ensureUser', async () => {
+    const app = passkeyApp({ roomId: null, me: null })
+    app.loadSaved = vi.fn(() => null)
+    app.ensureUser = vi.fn(async () => {})
+    app.setupPasskey = vi.fn(async () => {})
+    app.pendingEntry = { type: 'room', roomId: 'room9', priorSession: null }
+    app.recovery = { linkToken: 'LT9' }
+    await app.confirmEntry()
+    expect(app.ensureUser).toHaveBeenCalledWith('LT9')
+  })
+
+  it('setupPasskey registers a first passkey and records it', async () => {
+    const app = passkeyApp()
+    vi.stubGlobal('fetch', routedFetch({
+      '/passkey/register-options': () => jsonResponse({ challenge: 'c', rp: { id: 'x' } }),
+      '/passkey/register-verify': () => jsonResponse({ ok: true, credentialId: 'cred1', personId: 'P'.repeat(32) }),
+    }))
+    vi.stubGlobal('SimpleWebAuthnBrowser', {
+      startRegistration: vi.fn(async () => ({ id: 'cred1', response: {} })),
+    })
+    await app.setupPasskey()
+    const rec = JSON.parse(localStorage.getItem('qrmeet.passkey')!)
+    expect(rec.credentialId).toBe('cred1')
+    expect(rec.links.room1).toBe('me1')
+    expect(app.passkeyProtected).toBe(true)
+  })
+
+  it('setupPasskey remembers a dismissed OS sheet and never re-prompts', async () => {
+    const app = passkeyApp()
+    vi.stubGlobal('fetch', routedFetch({
+      '/passkey/register-options': () => jsonResponse({ challenge: 'c' }),
+    }))
+    const startRegistration = vi.fn(async () => {
+      throw Object.assign(new Error('cancelled'), { name: 'NotAllowedError' })
+    })
+    vi.stubGlobal('SimpleWebAuthnBrowser', { startRegistration })
+    await app.setupPasskey()
+    expect(JSON.parse(localStorage.getItem('qrmeet.passkey')!).declined).toBe(true)
+
+    await app.setupPasskey() // second join: no ceremony
+    expect(startRegistration).toHaveBeenCalledTimes(1)
+  })
+
+  it('setupPasskey links an existing credential via get() — never creates a second one', async () => {
+    const app = passkeyApp()
+    localStorage.setItem('qrmeet.passkey', JSON.stringify({ credentialId: 'cred1', personId: 'p1', links: { other: 'u2' } }))
+    const startRegistration = vi.fn()
+    const startAuthentication = vi.fn(async () => ({ id: 'cred1', response: {} }))
+    vi.stubGlobal('SimpleWebAuthnBrowser', { startRegistration, startAuthentication })
+    vi.stubGlobal('fetch', routedFetch({
+      '/api/passkey/auth-options': () => jsonResponse({ challenge: 'c' }),
+      '/api/passkey/auth-verify': () => jsonResponse({ accounts: [], linkToken: 'LT1', credentialId: 'cred1', personId: 'p1' }),
+      '/api/rooms/room1/users': () => jsonResponse({ publicId: 'me1' }, 201),
+    }))
+    await app.setupPasskey()
+    expect(startRegistration).not.toHaveBeenCalled()
+    expect(startAuthentication).toHaveBeenCalled()
+    const rec = JSON.parse(localStorage.getItem('qrmeet.passkey')!)
+    expect(rec.links.room1).toBe('me1')
+    expect(app.passkeyProtected).toBe(true)
+  })
+
+  it('recoverProfile adopts the matching account and runs the parked entry', async () => {
+    const app = passkeyApp({ me: null, roomId: null })
+    app._passkeyCeremony = vi.fn(async () => ({ id: 'cred1', response: {} }))
+    app.pendingEntry = { type: 'scan', roomId: 'room9', scanneePublicId: 'p9', qrToken: 'tok' }
+    vi.stubGlobal('fetch', routedFetch({
+      '/api/passkey/auth-verify': () => jsonResponse({
+        accounts: [{ roomId: 'room9', roomName: 'R', publicId: 'orig1', privateToken: 'pt1', displayName: 'Orig', emoji: '🦊' }],
+        linkToken: 'LT1', credentialId: 'cred1', personId: 'p1',
+      }),
+    }))
+    await app.recoverProfile('room9')
+    expect(app.performSwitchRoom).toHaveBeenCalled()   // stale socket/state reset first
+    expect(app.me).toMatchObject({ publicId: 'orig1', privateToken: 'pt1' })
+    expect(app.roomId).toBe('room9')
+    expect(app.doScan).toHaveBeenCalledWith('p9', 'tok')
+    expect(app.pendingEntry).toBeNull()
+  })
+
+  it('recoverProfile offers the link pane when authenticated without a profile here', async () => {
+    const app = passkeyApp({ me: null, roomId: null })
+    app._passkeyCeremony = vi.fn(async () => ({ id: 'cred1', response: {} }))
+    app.pendingEntry = { type: 'room', roomId: 'room9', priorSession: null }
+    vi.stubGlobal('fetch', routedFetch({
+      '/api/passkey/auth-verify': () => jsonResponse({
+        accounts: [{ roomId: 'elsewhere', publicId: 'u1', privateToken: 'pt', displayName: 'D', emoji: '🦊' }],
+        linkToken: 'LT1', credentialId: 'cred1', personId: 'p1',
+      }),
+    }))
+    await app.recoverProfile('room9')
+    expect(app.consentStep).toBe('link')
+    expect(app.recovery.linkToken).toBe('LT1')
+    expect(app.pendingEntry).not.toBeNull()
+  })
+
+  it('requestEntry adopts an immediate-mode recovery and skips the consent gate', async () => {
+    const app = passkeyApp({ me: null, roomId: null })
+    app.loadSaved = vi.fn(() => null)
+    app._passkeyCeremony = vi.fn(async () => ({ id: 'cred1', response: {} }))
+    vi.stubGlobal('fetch', routedFetch({
+      '/api/passkey/auth-verify': () => jsonResponse({
+        accounts: [{ roomId: 'room9', publicId: 'orig1', privateToken: 'pt1', displayName: 'Orig', emoji: '🦊' }],
+        linkToken: 'LT1', credentialId: 'cred1', personId: 'p1',
+      }),
+    }))
+    await app.requestEntry({ type: 'scan', roomId: 'room9', scanneePublicId: 'p9', qrToken: 'tok' })
+    expect(app._passkeyCeremony).toHaveBeenCalledWith({ immediate: true })
+    expect(app.page).not.toBe('consent')
+    expect(app.me?.publicId).toBe('orig1')
+    expect(app.doScan).toHaveBeenCalledWith('p9', 'tok')
+  })
+
+  it('requestEntry falls back to the consent gate when the immediate probe rejects', async () => {
+    const app = passkeyApp({ me: null, roomId: null })
+    app.loadSaved = vi.fn(() => null)
+    app._passkeyCeremony = vi.fn(async () => { throw new TypeError('immediate unsupported') })
+    await app.requestEntry({ type: 'room', roomId: 'room9' })
+    expect(app.page).toBe('consent')
+    expect(app.pendingEntry).toMatchObject({ type: 'room', roomId: 'room9' })
+  })
+
+  it('ensureUser posts the linkToken and records the local link', async () => {
+    const app = passkeyApp({ me: null, roomId: 'room9' })
+    app.loadSaved = vi.fn(() => null)
+    const fetchMock = routedFetch({
+      '/api/rooms/room9/users': () => jsonResponse({ publicId: 'new1', privateToken: 'pt', displayName: 'N' }, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    app.save = vi.fn()
+    await app.ensureUser('LT42')
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.linkToken).toBe('LT42')
+    expect(JSON.parse(localStorage.getItem('qrmeet.passkey')!).links.room9).toBe('new1')
+    expect(app.passkeyProtected).toBe(true)
+  })
+})
+
 describe('refreshQrToken', () => {
   it('schedules a retry after a transient failure, then renders the fresh token', async () => {
     vi.useFakeTimers()
